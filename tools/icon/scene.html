@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RoguSo icon capture</title>
+<script type="importmap">{ "imports": { "three": "../../vendor/three/three.module.js" } }</script>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  canvas#c { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+
+// The RoguSo mark: a voxel blue sword, slightly lit — one clean diagonal blade on a transparent field,
+// rendered at 1024 and captured headless (tools/icon.sh turns the PNG into the .ico + the game's favicon).
+const S = 1024;
+const canvas = document.getElementById('c');
+canvas.width = S; canvas.height = S;
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setClearColor(0xff00ff, 1);   // chroma key: stripped to alpha by tools/icon.py
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+
+// ---- the sword, voxel by voxel. Blade axis: -Z (tip far), hilt near. Unit = one voxel.
+const V = [];
+const put = (x, y, z, c) => V.push([x, y, z, c]);
+const BLADE = 0x4aa8e8, BLADE_HI = 0x8fd0f8, BLADE_DK = 0x2a6cb0, EDGE = 0xd8f0fe;
+const GUARD = 0xc8a040, GUARD_DK = 0x8a6a20, GRIP = 0x1a2a3a, POMMEL = 0xc8a040;
+
+for (let i = 0; i < 13; i++) {                       // blade: 2x2 shaft with a hi/dk face split, tapering to a tip
+  const z = -3 - i;
+  if (i < 12) {
+    put(0, 0, z, i % 2 ? BLADE : BLADE_HI); put(1, 0, z, i % 2 ? BLADE_DK : BLADE);
+    put(0, 1, z, BLADE_DK); put(1, 1, z, BLADE);
+    if (i % 3 === 1) { put(0, 0, z, EDGE); }          // a glint line down the flat
+  } else { put(0, 0, z, EDGE); }                      // tip
+}
+put(0, 0, -16, EDGE);                                // the very point
+put(-1, 0, -2, GUARD); put(2, 0, -2, GUARD_DK);      // crossguard: gold bar across, one voxel out each side
+put(0, -1, -2, GUARD_DK); put(1, 1, -2, GUARD);
+put(0, 0, -1, GRIP); put(1, 0, -1, GRIP);            // grip
+put(0, 0, 0, POMMEL); put(1, 0, 0, GUARD_DK);        // pommel
+
+const g = new THREE.Group();
+const geo = new THREE.BoxGeometry(0.92, 0.92, 0.92);
+const mat = {};
+for (const [x, y, z, c] of V) {
+  const m = new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.22 });
+  const cube = new THREE.Mesh(geo, m);
+  cube.position.set(x - 0.5, y - 0.5, z);
+  g.add(cube);
+}
+g.rotation.set(0.62, -0.55, 0.12);                   // the heroic diagonal
+scene.add(g);
+
+scene.add(new THREE.AmbientLight(0xbfd8f0, 0.55));
+const key = new THREE.DirectionalLight(0xcfe8ff, 2.2); key.position.set(3, 5, 4); scene.add(key);
+const rim = new THREE.DirectionalLight(0x66b8ff, 1.4); rim.position.set(-4, -2, -3); scene.add(rim);
+
+// fit the sword to the frame: centre the group, pull the camera back until the bound fits with a small margin
+const box = new THREE.Box3().setFromObject(g);
+const c = box.getCenter(new THREE.Vector3());
+g.position.sub(c);
+const bs = new THREE.Sphere(); box.getBoundingSphere(bs);
+const fit = bs.radius / Math.sin(Math.min(camera.fov, camera.fov) * Math.PI / 360) * 1.02;
+camera.position.set(0, 0, fit);
+camera.lookAt(0, 0, 0);
+renderer.render(scene, camera);
+window.__roguaso_icon_done = true;
+</script>
+</body>
+</html>

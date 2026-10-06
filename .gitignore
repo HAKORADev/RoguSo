@@ -1,0 +1,5 @@
+build/
+shell/wv2/
+shell/roguaso.res
+shell/*.obj
+*.log

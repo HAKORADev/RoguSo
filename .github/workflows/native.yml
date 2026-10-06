@@ -1,0 +1,81 @@
+name: native
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: version stamp (also the changelog version)
+        required: false
+        default: '0.5.0'
+jobs:
+  windows:
+    name: build the RoguSo exe (web build embedded)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: fetch the WebView2 SDK
+        shell: pwsh
+        run: |
+          $v = "1.0.2792.45"
+          Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/$v" -OutFile wv2.zip
+          Expand-Archive -Path wv2.zip -DestinationPath shell/wv2 -Force
+          Remove-Item wv2.zip
+          Get-ChildItem shell/wv2/build/native | Select-Object Name
+
+      - name: embed the web build into the shell
+        shell: pwsh
+        run: python tools/embed.py "${{ github.event.inputs.version }}"
+
+      - name: compile
+        shell: cmd
+        working-directory: shell
+        run: |
+          rc /fo roguaso.res roguaso.rc
+          cl /nologo /std:c++20 /O2 /MT /EHsc /DUNICODE /D_UNICODE /DNDEBUG ^
+            roguaso.cpp ..\build\embed_data.cpp roguaso.res ^
+            /I. /Iwv2\build\native\include ^
+            /Fe:..\build\RoguSo.exe ^
+            /link wv2\build\native\x64\WebView2LoaderStatic.lib ^
+            user32.lib gdi32.lib shell32.lib shlwapi.lib advapi32.lib ole32.lib oleaut32.lib uuid.lib ^
+            /SUBSYSTEM:WINDOWS /LTCG
+
+      - name: package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build/RoguSo.exe -DestinationPath build/RoguSo-windows-x64.zip
+          Get-Item build/RoguSo.exe, build/RoguSo-windows-x64.zip | Select-Object Name, Length
+
+      - name: upload the exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: RoguSo-windows-x64
+          path: build/RoguSo.exe
+
+      - name: upload the zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: RoguSo-windows-x64-zip
+          path: build/RoguSo-windows-x64.zip
+
+  web:
+    name: package the plain browser build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: pack the web build
+        run: |
+          mkdir -p build/roguaso-web
+          cp -r index.html sword.png src vendor build/roguaso-web/
+          cd build && zip -qr RoguSo-web.zip roguaso-web && cd ..
+
+      - name: upload the web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: RoguSo-web
+          path: build/RoguSo-web.zip
