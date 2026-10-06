@@ -137,8 +137,13 @@ static bool JsonField(const std::string& json, const char* key, std::string& out
                 case 't': out += '\t'; break;
                 case 'u': {
                     if (p + 4 > json.size()) return false;
-                    wchar_t wc = (wchar_t)wcstoul(json.substr(p, 4).c_str(), nullptr, 16);
+                    unsigned int v = 0;
+                    for (int k = 0; k < 4; k++) {
+                        char c = json[p + k];
+                        v = v * 16 + (unsigned int)(c <= '9' ? c - '0' : (c | 0x20) - 'a' + 10);
+                    }
                     p += 4;
+                    wchar_t wc = (wchar_t)v;
                     char mb[8];
                     int n = WideCharToMultiByte(CP_UTF8, 0, &wc, 1, mb, sizeof(mb), nullptr, nullptr);
                     out.append(mb, n > 0 ? n : 0);
@@ -265,12 +270,12 @@ public:
         std::string rel = WideToUtf8(relW);
         if (rel.empty()) rel = "index.html";
         const EmbeddedFile* f = FindEmbed(rel);
-        ComPtr<ICoreWebView2Environment_2> env2;
-        if (!f || FAILED(g_env.As(&env2)) || !env2) {
-            ComPtr<ICoreWebView2WebResourceResponse> err;
-            if (env2 && SUCCEEDED(env2->CreateWebResourceResponse(nullptr, 404, L"Not Found", L"", &err)) && err)
-                args->put_Response(err.Get());
-            args->put_Handled(TRUE);
+        ComPtr<ICoreWebView2Environment2> env2;
+        if (FAILED(g_env.As(&env2)) || !env2) return S_OK;
+        ComPtr<ICoreWebView2WebResourceResponse> resp;
+        if (!f) {
+            if (FAILED(env2->CreateWebResourceResponse(nullptr, 404, L"Not Found", L"", &resp)) || !resp) return S_OK;
+            args->put_Response(resp.Get());
             return S_OK;
         }
         HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, f->size);
@@ -281,15 +286,12 @@ public:
         ComPtr<IStream> stream;
         if (!h || FAILED(CreateStreamOnHGlobal(h, TRUE, &stream))) {
             GlobalFree(h);
-            args->put_Handled(TRUE);
             return S_OK;
         }
         std::wstring headers = std::wstring(L"Content-Type: ") + MimeOf(rel) + L"\r\nCache-Control: no-cache\r\n";
-        ComPtr<ICoreWebView2WebResourceResponse> resp;
         if (SUCCEEDED(env2->CreateWebResourceResponse(stream.Get(), 200, L"OK", headers.c_str(), &resp)) && resp) {
-            args->put_Response(resp.Get());
+            args->put_Response(resp.Get());      // setting the response is what answers the request
         }
-        args->put_Handled(TRUE);
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** out) override {
