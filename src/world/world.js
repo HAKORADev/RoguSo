@@ -9,6 +9,7 @@
 // render time. story:set {id} runs the current map's build().sets[id].
 import * as THREE from 'three';
 import { SUN_DIR, HAZE, installHaze, createSky, setAtmo } from './sky.js';
+import { nightFactor } from './daynight.js';
 import { buildTerrain, GRASS_TIME } from './terrain.js';
 import { buildCastle } from './castle.js';
 import { createRiver } from './river.js';
@@ -21,6 +22,8 @@ import { on } from '../core/events.js';
 // sun so the ground reads (hard shadows fall toward the camera, soldiers get a warm rim)
 const LIGHT = { hemi: [0x9cafd4, 0x9a7a5c, 2.2], sun: [0xffcf9a, 4.0], rim: [0xffa060, 1.6], dir: [0.5, 0.58, 0.64], fire: 0xff8a3a, key: null, fill: null };
 const LIGHT_DIR = new THREE.Vector3();
+const MOON = new THREE.Color(0x8fa8e8), MOON_GROUND = new THREE.Color(0x1a2030);
+const shadowDir = new THREE.Vector3();
 
 installHaze();
 // the sun's shadow fades out over the outer 20 % of its box instead of cutting off: soldiers and props at the box edge
@@ -106,6 +109,7 @@ export function createWorld(scene, post) {
       if (root) { scene.remove(root); trash.push(root); }
       root = new THREE.Group(); root.name = 'map-' + def.id;             // identity transform: fires carry world positions
       sky = createSky();
+      sky.name = 'skydome';                                              // daynight.js finds it here
       root.add(sky);
       buildTerrain(root, def);
       river = createRiver(root);
@@ -128,11 +132,23 @@ export function createWorld(scene, post) {
       for (const r of trash.splice(0)) dispose(r);
       t += dt;
       river?.update(dt, game);
+      // day/night: the shadow light rides the shared SUN_DIR arc (clamped above the horizon so twilight shadows stay
+      // sane), the sun dims into moonlight, the hemisphere cools, the firelights bloom — nightFactor() from daynight.js
+      const nf = nightFactor();
+      hemi.intensity = L.hemi[2] * (1 - 0.86 * nf);
+      hemi.color.set(L.hemi[0]).lerp(MOON, 0.85 * nf);
+      hemi.groundColor.set(L.hemi[1]).lerp(MOON_GROUND, 0.8 * nf);
+      sun.intensity = L.sun[1] * (1 - 0.88 * nf) + 0.22 * nf;
+      sun.color.set(L.sun[0]).lerp(MOON, 0.85 * nf);
+      rim.intensity = L.rim[1] * (1 - 0.75 * nf);
+      rim.color.set(L.rim[0]).lerp(MOON, 0.8 * nf);
+      rim.position.copy(SUN_DIR).multiplyScalar(100);
       // shadow frustum follows the focus (snapped to texels to avoid shimmer), at the ground under it
       const step = 2 * SHADOW_BOX / 2048;
       tmp.set(Math.round(focus.x / step) * step, ground(focus.x, focus.z), Math.round(focus.z / step) * step);
       sun.target.position.copy(tmp);
-      sun.position.copy(LIGHT_DIR).multiplyScalar(70).add(tmp);
+      shadowDir.copy(SUN_DIR); shadowDir.y = Math.max(shadowDir.y, 0.14); shadowDir.normalize();
+      sun.position.copy(shadowDir).multiplyScalar(70).add(tmp);
       sky.material.uniforms.uTime.value = t; GRASS_TIME.value = t;
       dressing.update(t, focus);
       castle?.update(t);
@@ -157,12 +173,12 @@ export function createWorld(scene, post) {
       }
       for (let n = 0; n < 3; n++) {
         const b = NEAR[n], l = fireLights[n], fl = 0.93 + Math.sin(t * (13 + n * 3.1) + n) * 0.17 + Math.sin(t * 7.3 + n * 2) * 0.13;
-        l.position.set(b.x, b.y, b.z); l.distance = b.d;
-        l.intensity = b.i * fl * (1 - smooth(26, 40, b.k)) * smooth(0, 6, NEAR[3].k - b.k);
+        l.position.set(b.x, b.y, b.z); l.distance = b.d * (1 + 0.45 * nf);
+        l.intensity = b.i * fl * (1 + 1.5 * nf) * (1 - smooth(26, 40, b.k)) * smooth(0, 6, NEAR[3].k - b.k);
       }
       for (const s of SITES) s.used = false;
-      stageKey.intensity = L.key ? 28 + Math.sin(t * 22.3 + 3) * 5 + Math.sin(t * 7.3 + 6) * 4 : 0;
-      fill.intensity = L.fill ? L.fill[2] * smooth(L.fill[0], L.fill[1], focus.z) : 0;
+      stageKey.intensity = L.key ? (28 + Math.sin(t * 22.3 + 3) * 5 + Math.sin(t * 7.3 + 6) * 4) * (1 + 1.2 * nf) : 0;
+      fill.intensity = (L.fill ? L.fill[2] * smooth(L.fill[0], L.fill[1], focus.z) : 0) * (1 - 0.8 * nf);
       fill.target.position.set(focus.x, 0, focus.z); fill.position.set(focus.x - 21, 27, focus.z - 60);
     },
   };

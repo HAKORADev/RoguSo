@@ -26,6 +26,7 @@ import { difficulty } from '../core/difficulty.js';
 import { best, locked } from '../core/progress.js';
 import { chapter } from '../story/chapters.js';
 import { dotTex, scatter, stagePoint, standOfficer, poseOfficer } from './stage.js';
+import { fitText } from './fittext.js';
 
 const STATS = [['atk', 'Attack'], ['def', 'Defence'], ['speed', 'Speed'], ['range', 'Reach']];
 // stage framing: officer ≈ 6.3 m from the lens, 30° vFOV (full body + headroom), aim shifted so he stands at x ≈ 75 %
@@ -55,10 +56,10 @@ export function createSelect(el, flow) {
     </article>
     <div class="s-line"><p></p><small></small></div>
     <p class="s-rec"><span>Record</span><b></b><small></small></p>
-    <div class="s-act"><button class="s-back"><b>Back</b></button><button class="s-go"><b>Deploy</b></button></div>
+    <div class="s-act"><button class="s-back"><b>Back</b></button><button class="s-go"><b>GO</b></button></div>
     <footer class="ui-foot"><span><kbd>↑</kbd><kbd>↓</kbd>Officer</span><span><kbd>Click</kbd>Select</span>
-      <span><kbd>Enter</kbd><kbd class="pad">A</kbd>Deploy</span><span><kbd>Esc</kbd><kbd class="pad">B</kbd>Back</span>
-      <span><kbd>Drag</kbd>Turn</span></footer>`;
+      <span><kbd>Enter</kbd><kbd class="pad">A</kbd>GO</span><span><kbd>Esc</kbd><kbd class="pad">B</kbd>Back</span>
+      <span><kbd>Drag</kbd>Turn</span><span><kbd>F11</kbd>Fullscreen</span></footer>`;
   const $ = (s) => el.querySelector(s), cards = {};
   for (const b of el.querySelectorAll('.s-card')) { cards[b.dataset.id] = b; paintPortrait(b.querySelector('canvas'), CHARS[b.dataset.id]); }
   let ctx = {}, ids = ALL, cur = ALL[0], busy = false, spinT = 0;   // ids: this visit's roster; cur: the focused id
@@ -95,6 +96,7 @@ export function createSelect(el, flow) {
     $('.s-rec span').textContent = lk ? 'Locked' : 'Record'; $('.s-rec b').textContent = rec; $('.s-rec small').textContent = '';
     $('.s-info').scrollTop = 0;
     replay(el, 'swap');                                    // name ink-in, stat bars refill, voice line brush reveal
+    fitText(el);                                           // nothing walks out of its box
     spinT = 0;
     if (!quiet) sfx('move');
   }
@@ -207,6 +209,7 @@ export function createSelect(el, flow) {
       }
       if (!ids.includes(cur)) { cards[cur].classList.remove('on'); cur = ids[0]; }
       show(ids.indexOf(cur), true); replay(el, 'in');       // header, roster and actions slide in as the ink uncovers
+      fitText(el);
       nav.start();
     },
     exit() { nav.stop(); drag = null; if (group) group.visible = false; if (key) key.position.copy(keyHome); },

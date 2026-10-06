@@ -43,7 +43,7 @@ const ITEMS = [
   { go: 'story', text: 'Story' },
   { go: 'trial', text: 'Trials' },
   { go: 'rec', text: 'Records' },
-  { go: 'ctl', text: 'Controls' },
+  { go: 'settings', text: 'Settings' },
   { go: 'reset', text: 'Reset Progress' },
 ];
 // the trial panel's last entry: not a trial (no records, no map of its own) — picking it opens the battlefield list
@@ -116,9 +116,6 @@ export function createTitle(el, flow) {
         <div class="t-dcard"><h3>Difficulty</h3><p class="t-dline"><b></b><small></small></p>
           <ul class="s-stats t-dbars">${['Pressure', 'Officers', 'Damage'].map((label) => `<li><b>${label}</b><span>${'<i></i>'.repeat(5)}</span></li>`).join('')}</ul></div></div>
     </div>
-    <section class="t-ctl"><h2>Controls</h2>
-      <table>${CONTROLS.map(([label, kb, pad]) => `<tr><th>${label}</th><td>${kb}</td><td class="pad">${pad}</td></tr>`).join('')}</table>
-      <p>Tap attack for the combo, press charge mid-combo for a finisher. Fill the gold gauge and unleash your Musou.</p></section>
     <section class="t-rec"></section>
     <footer class="ui-foot"></footer>`;
   const $ = (s) => el.querySelector(s), btns = [...el.querySelectorAll('.t-main button')], dbtns = [...el.querySelectorAll('.t-dif button')];
@@ -140,7 +137,7 @@ export function createTitle(el, flow) {
   const foot = () => {
     const what = dmode ? 'difficulty' : cmode === 'story' ? 'chapter' : cmode === 'trial' ? 'trial' : cmode ? 'field' : '';
     $('.ui-foot').innerHTML = panel ? `<span><kbd>Esc</kbd><kbd class="pad">B</kbd>Back</span>`
-      : `<span><kbd>↑</kbd><kbd>↓</kbd>Select${what ? ' ' + what : ''}</span><span><kbd>Enter</kbd><kbd class="pad">A</kbd>Confirm</span>`
+      : `<span><kbd>↑</kbd><kbd>↓</kbd>Select${what ? ' ' + what : ''}</span><span><kbd>Enter</kbd><kbd class="pad">A</kbd>Confirm</span><span><kbd>F11</kbd>Fullscreen</span>`
         + (what ? `<span><kbd>Esc</kbd><kbd class="pad">B</kbd>Back</span>` : '');
   };
   /** Why entry i of the panel's list can't be picked yet ([zh, en]), or null: a story chapter waits on the one before
@@ -205,9 +202,9 @@ export function createTitle(el, flow) {
       <ul>${UNLOCKS.map((u) => { const lk = locked(u.id); return `<li class="${lk ? '' : 'open'}"><i>${lk ? 'LOCK' : 'OPEN'}</i><b>${u.text}</b><span>${lk ? lk.rule : 'Unlocked'}</span></li>`; }).join('')}</ul></div>`;
     el.querySelectorAll('.t-rec canvas').forEach((cv, k) => paintPortrait(cv, CHARS[who[k]]));
   }
-  /** The overlay beside the menu: 'ctl' controls, 'rec' the records wall, null = none. */
+  /** The overlay beside the menu: 'rec' the records wall, null = none. */
   const setPanel = (v) => {
-    panel = v; el.classList.toggle('ctl', v === 'ctl'); el.classList.toggle('rec', v === 'rec'); foot();
+    panel = v; el.classList.toggle('rec', v === 'rec'); foot();
     if (v === 'rec') wall();
   };
   // difficulty panel: the card shows the focused tier (a locked Chaos: its unlock rule instead of the line)
@@ -257,7 +254,11 @@ export function createTitle(el, flow) {
       else { sfx('stamp'); stamp(btns[cur], 'GO'); wipeAll(); }
       return;
     }
-    if (it.go === 'ctl' || it.go === 'rec') setPanel(it.go); else setCh(it.go);
+    if (it.go === 'settings') {
+      sfx('ok'); busy = true;
+      return setTimeout(() => inkWipe(() => flow.go('settings')), 380);
+    }
+    if (it.go === 'rec') setPanel(it.go); else setCh(it.go);
   };
   const back = () => {
     if (busy) return;

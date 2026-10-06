@@ -41,6 +41,9 @@ export const HAZE = new THREE.Color();                // fogColor of the current
 export const SKY_UP = new THREE.Color();              // what the river reflects looking up
 const C = Object.fromEntries(COLORS.map((k) => [k, new THREE.Color()]));   // current palette (linear working colours)
 let core = SKY.sunCore;
+let CURDEF = { ...SKY };                              // the merged def.sky of the loaded map (daynight.js reads it)
+export const skyDef = () => CURDEF;
+export const PALETTE = C;                             // live palette (daynight lerps it toward night in place)
 
 const v3 = (c, k = 1) => `vec3(${(c.r * k).toFixed(4)}, ${(c.g * k).toFixed(4)}, ${(c.b * k).toFixed(4)})`;
 const q = (v, n = 4) => +v.toFixed(n);                // uniform values carry the precision the baked literals had
@@ -52,6 +55,7 @@ const put = (u, c, k = 1) => { u.value.x = q(c.r * k); u.value.y = q(c.g * k); u
  *  map's sky (createSky) and baked colours (hazeColor). */
 export function setAtmo(sky = {}) {
   const s = { ...SKY, ...sky };
+  CURDEF = s;
   for (const k of COLORS) C[k].set(s[k]);
   SUN_AZ = s.sunAz; core = s.sunCore;
   SUN_DIR.set(Math.sin(s.sunAz) * Math.cos(s.sunElev), Math.sin(s.sunElev), Math.cos(s.sunAz) * Math.cos(s.sunElev));
@@ -138,23 +142,25 @@ export function installHaze() {
   #endif`;
 }
 
-/** The current map's sky dome (setAtmo first): its palette is baked into the material's source. */
+/** The current map's sky dome (setAtmo first): its palette is baked into the material's source. The day/night cycle
+ *  (daynight.js) drives uNight (0 day → 1 night) and mutates uSunDir in place (the moon's arc at night: the disc
+ *  becomes the moon, the haze lobe and the god rays follow it), so one shared vector steers sky, fog, post and lights. */
 export function createSky() {
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { uTime: { value: 0 }, ...ATMO },
+    uniforms: { uTime: { value: 0 }, uNight: { value: 0 }, uSunDir: { value: SUN_DIR }, ...ATMO },
     vertexShader: /* glsl */`
       varying vec3 vDir;
       void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w; }`,
     fragmentShader: /* glsl */`
-      uniform float uTime; varying vec3 vDir;
+      uniform float uTime; uniform vec3 uSunDir; uniform float uNight; varying vec3 vDir;
       ${HAZE_GLSL}
       ${NOISE_GLSL}
       float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * dwNoise(p); p = p * 2.07 + vec2(17.1, 9.2); a *= 0.5; } return s; }
       void main() {
         vec3 d = normalize(vDir);
         float h = d.y;
-        vec3 sun = vec3(${SUN_DIR.x.toFixed(4)}, ${SUN_DIR.y.toFixed(4)}, ${SUN_DIR.z.toFixed(4)});
+        vec3 sun = normalize(uSunDir);
         float s = max(dot(d, sun), 0.0);
         vec3 hz = dwHaze(normalize(vec3(d.x, 0.0, d.z) + vec3(0.0, sun.y, 0.0)), ${v3(C.haze)});
         vec3 up = mix(${v3(C.skyMid)}, ${v3(C.skyTop)}, smoothstep(0.18, 0.8, h));
@@ -175,9 +181,15 @@ export function createSky() {
           c = mix(c, cl, cov * 0.92);
         }
         // sun: wide warm scatter, a tight halo and a small hot core (in frame now: a big HDR disc blooms and the DoF
-        // smears it over the watchtowers, which must stay silhouettes)
-        c += ${v3(C.glow)} * (pow(s, 60.0) * 0.1 + pow(s, 1400.0) * 0.8);
-        c = mix(c, vec3(${core.map((v) => v.toFixed(3)).join(', ')}), smoothstep(0.99968, 0.99976, s));
+        // smears it over the watchtowers, which must stay silhouettes). At night the same arc carries the moon: the
+        // scatter and halo fade, the core cools and takes noise-craters, and the whole palette drops into moonlit blue.
+        c += ${v3(C.glow)} * (pow(s, 60.0) * 0.1 + pow(s, 1400.0) * 0.8) * mix(1.0, 0.16, uNight);
+        float disc = smoothstep(0.99968, 0.99976, s);
+        vec3 coreC = mix(vec3(${core.map((v) => v.toFixed(3)).join(', ')}), vec3(1.05, 1.18, 1.55), uNight);
+        c = mix(c, coreC, disc);
+        if (disc > 0.0 && uNight > 0.01) c = mix(c, coreC * (0.7 + 0.3 * dwNoise(d.xz * 24.0 + 3.7)), disc * uNight * 0.9);
+        vec3 moonlit = pow(max(c, vec3(0.0)), vec3(1.7)) * vec3(0.15, 0.2, 0.42) + vec3(0.003, 0.006, 0.016);
+        c = mix(c, moonlit, uNight * (1.0 - disc * 0.8));
         gl_FragColor = vec4(c, 1.0);
       }`,
   });

@@ -1,21 +1,25 @@
 // Renderer + post chain — the concept.png look: backlit golden hour, warm bloom, strong DoF, subtle retro texture.
-//   scene  → sceneRT  full res, HDR, 4× MSAA, depth texture (crisp voxel edges)
-//   atmos  → atmosRT  full res: aerial perspective (mauve haze away from the sun, peach toward it) + backlit dust
-//                     in-scatter; alpha = view distance
+//   scene  → sceneRT  render-size, HDR, MSAA (Graphics AA level), depth texture (crisp voxel edges)
+//   hist   → histRT   temporal accumulate target (FSR Native AA: jittered frames blend in here; else passthrough)
+//   atmos  → atmosRT  render-size: aerial perspective (mauve haze away from the sun, peach toward it) + backlit dust
+//                     in-scatter + ambient occlusion multiplied into the pre-fog scene colour; alpha = view distance
 //   dof    → dofRT    half res: single-pass gather bokeh; alpha = how much a blurred foreground covers this pixel
-//   bloom             UnrealBloom on dofRT, source-hued, HDR threshold: only sun / fire / spear arc bloom
+//   bloom             UnrealBloom on dofRT, source-hued, HDR threshold: only sun / fire / spear arc bloom (Bloom level)
 //   rays   → raysRT   half res: god rays, radial blur of the sky round the sun (skipped while the sun is off screen)
-//   final  → screen   sharp/blurred mix per pixel (CoC from full-res depth), bloom, horizontal highlight streaks,
+//   final  → backRT   sharp/blurred mix per pixel (CoC from full-res depth), bloom, horizontal highlight streaks,
 //                     chromatic fringe, split-tone grade (scene-linear), hue-preserving S-curve + per-channel soft
 //                     shoulder (fire stays orange/yellow, white armour keeps its shading), bottom darkening,
-//                     vignette, grain, 2 px ordered dither + palette quantisation (retro).
-// Quality tier: a sustained frame time over budget drops the scene MSAA 4× → 2× → off (?hq pins it).
-// Per-map look: setLook(def.post) overrides any P key (the rest fall back to P) — uniforms only, no recompile.
-// Render-only: reads camera/focus, never touches sim state.
+//                     vignette, grain, 2 px ordered dither + palette quantisation (retro)
+//   present→ screen   back/front ping-pong: camera motion blur (weight from the camera's speed) and FSR frame
+//                     generation (synth presents crossfade the last two real frames) both live here
+// Quality (core/settings.js, applied live): AA (sceneRT samples), Supersampling (render scale > 1), FSR upscaler
+// (render scale < 1 + RCAS-style sharpen), AO, Bloom, Camera / Object motion blur, internal resolution (Display).
+// The sim is never touched: render-only, reads camera/focus.
 import * as THREE from 'three';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { SUN_DIR } from '../world/sky.js';
+import { values, on, internalRes } from '../core/settings.js';
 
 // Tunables. Every key k is uniform u<K> in all passes.
 // Tuned on overview / crowd-fight / musou captures toward the concept stats (luma mean ≈ 0.36, p5 ≤ 0.08, p95 ≥ 0.78,
@@ -49,9 +53,37 @@ const COC = /* glsl */`
     return max(clamp((fn / d - 1.0) * uNearBlur * uNearScale, 0.0, 12.0), clamp((1.0 - ff / d) * uFarBlur * uFarScale, 0.0, 12.0));
   }`;
 
+// screen-space ambient occlusion from the scene depth: 8-angle horizon samples in two rings, view-space, the AO
+// multiplies the pre-fog scene colour in the atmos pass (never the sky: depth ≥ 1 returns 1)
+const AoShader = /* glsl */`
+  uniform sampler2D tDepth; uniform mat4 uProjInv; uniform vec2 uTexel; uniform float uAoStrength, uAoRadius;
+  varying vec2 vUv;
+  vec3 viewPos(vec2 uv) {
+    float z = texture2D(tDepth, uv).x;
+    vec4 v = uProjInv * vec4(uv * 2.0 - 1.0, z * 2.0 - 1.0, 1.0); v.xyz /= v.w;
+    return v.xyz;
+  }
+  void main() {
+    float z = texture2D(tDepth, vUv).x;
+    if (z >= 0.99999) { gl_FragColor = vec4(1.0); return; }
+    vec3 p = viewPos(vUv);
+    vec3 n = normalize(cross(dFdx(p), dFdy(p)));
+    float occ = 0.0;
+    for (int i = 0; i < 8; i++) {
+      float a = float(i) * 0.7854 + fract(sin(float(i) * 12.9) * 43758.5) * 3.14;
+      vec2 o = vec2(cos(a), sin(a)) * uTexel * (1.0 + 1.6 * mod(float(i), 2.0));
+      vec3 s = viewPos(vUv + o);
+      vec3 d = s - p; float l = max(length(d), 1e-4);
+      occ += max(0.0, dot(n, d) / l - 0.06) * (1.0 / (1.0 + l * l * 0.03)) * step(l, uAoRadius);
+    }
+    float ao = clamp(1.0 - occ / 8.0 * uAoStrength, 0.0, 1.0);
+    gl_FragColor = vec4(ao, ao, ao, 1.0);
+  }`;
+
 const AtmosShader = /* glsl */`
   uniform sampler2D tColor, tDepth; uniform mat4 uProjInv, uCamWorld; uniform vec3 uSunDir, uCamPos;
   uniform vec3 uHazeCool, uHazeWarm, uSunGlow, uInscatter, uSunBurst; uniform float uSunGlowGeo, uSkyGain, uFarGain, uHazeStart, uHazeDensity, uHazeMax, uSkyHaze, uHdrClamp, uInscatterDist;
+  uniform sampler2D tAO; uniform float uAoOn;
   varying vec2 vUv;
   void main() {
     float z = texture2D(tDepth, vUv).x;
@@ -62,6 +94,7 @@ const AtmosShader = /* glsl */`
     // graduated exposure: fully fogged distance and sky sit a stop lower, so close-ups against the horizon read as a
     // sunset gradient instead of a white-out
     vec3 c = texture2D(tColor, vUv).rgb * (sky ? uSkyGain : mix(1.0, uFarGain, smoothstep(60.0, 250.0, dist)));
+    c *= mix(vec3(1.0), texture2D(tAO, vUv).rgb, uAoOn);       // AO darkens the scene, never the haze it sits in
     float mu = dot(dir, uSunDir);
     vec3 hz = mix(uHazeCool, uHazeWarm, smoothstep(-0.4, 0.95, mu)) + uSunGlow * pow(max(mu, 0.0), 10.0) * (sky ? 1.0 : uSunGlowGeo);  // backlit walls stay silhouettes
     float wy = uCamPos.y + dir.y * min(dist, 400.0);                      // height of the hit point: dust hugs the ground
@@ -199,6 +232,13 @@ const FinalShader = /* glsl */`
     gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
   }`;
 
+// present pass: back/front ping-pong. uMix 0 = the latest real frame, 1 = the one before it; camera motion blur and
+// FSR frame generation both live in this mix (framegen: synth presents crossfade the two real frames)
+const PresentShader = /* glsl */`
+  uniform sampler2D tA, tB; uniform float uMix;
+  varying vec2 vUv;
+  void main() { gl_FragColor = texture2D(tA, vUv) * (1.0 - uMix) + texture2D(tB, vUv) * uMix; }`;
+
 const mat = (fragmentShader, uniforms) => new THREE.ShaderMaterial({ vertexShader: quadVS, fragmentShader, uniforms: { ...pUniforms(), ...uniforms }, depthTest: false, depthWrite: false, toneMapped: false });
 const v3 = (a) => new THREE.Vector3(...a);
 
@@ -207,11 +247,16 @@ export function createPost({ canvas, width, height }) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
-  const sceneRT = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(4, 4) });
+  const mkRT = (w, h, o) => new THREE.WebGLRenderTarget(w, h, o);
+  const sceneRT = mkRT(4, 4, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(4, 4) });
+  const histRT = mkRT(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
   // nearest: the half-res DoF must not average a hero-plane distance with the background behind it
-  const atmosRT = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
-  const dofRT = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
-  const raysRT = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
+  const atmosRT = mkRT(4, 4, { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+  const aoRT = mkRT(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
+  const dofRT = mkRT(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
+  const raysRT = mkRT(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
+  let backRT = mkRT(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
+  let frontRT = mkRT(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
   const bloom = new UnrealBloomPass(new THREE.Vector2(320, 180), P.bloom, P.bloomRadius, P.bloomThreshold);
   bloom.blendMaterial.visible = false;          // don't add onto dofRT: the final pass adds the bloom to both branches
   // prefilter: soft knee instead of a hard cut (no popping), and blue-dominant light (the spear arc, the one cool
@@ -233,8 +278,12 @@ export function createPost({ canvas, width, height }) {
   // (the Musou payoff's dragon + light shards) spread into a screen-wide pale-blue veil; light stays a local glow.
   bloom.bloomTintColors = [v3([0.95, 1, 1.08]), v3([1, 0.97, 0.93]), v3([0.45, 0.42, 0.39]), v3([0.12, 0.11, 0.1]), v3([0.03, 0.026, 0.023])];
   const dofU = { uFocus: { value: 7 }, uNearScale: { value: 1 }, uFarScale: { value: 1 }, uBandN: { value: 3 }, uBandF: { value: 5 } };   // shared by dof + final
+  const ao = new FullScreenQuad(mat(AoShader, {
+    tDepth: { value: sceneRT.depthTexture }, uProjInv: { value: new THREE.Matrix4() },
+    uTexel: { value: new THREE.Vector2() }, uAoStrength: { value: 0.9 }, uAoRadius: { value: 1.3 },
+  }));
   const atmos = new FullScreenQuad(mat(AtmosShader, {
-    tColor: { value: sceneRT.texture }, tDepth: { value: sceneRT.depthTexture },
+    tColor: { value: sceneRT.texture }, tDepth: { value: sceneRT.depthTexture }, tAO: { value: aoRT.texture }, uAoOn: { value: 0 },
     uProjInv: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() },
     uSunDir: { value: SUN_DIR }, uCamPos: { value: new THREE.Vector3() },
   }));
@@ -244,6 +293,11 @@ export function createPost({ canvas, width, height }) {
   const fin = new FullScreenQuad(mat(FinalShader, {
     tSharp: { value: atmosRT.texture }, tDof: { value: dofRT.texture }, tBloom: { value: bloom.renderTargetsHorizontal[0].texture }, tRays: { value: raysRT.texture }, uRayGain: { value: 0 },
     uRes: { value: new THREE.Vector2(1280, 720) }, uTime: { value: 0 }, uFlash: { value: 0 }, uTmB: { value: 0 }, uTmC: { value: 0 }, ...dofU,
+  }));
+  const present = new FullScreenQuad(new THREE.ShaderMaterial({
+    vertexShader: quadVS, fragmentShader: PresentShader,
+    uniforms: { tA: { value: backRT.texture }, tB: { value: frontRT.texture }, uMix: { value: 0 } },
+    depthTest: false, depthWrite: false, toneMapped: false,
   }));
   // the current look: P with the map's overrides (setLook); every key is uniform u<K> in each pass
   let L = P;
@@ -258,19 +312,66 @@ export function createPost({ canvas, width, height }) {
   }
   setLook();
 
-  function setSize(w, h) {
-    renderer.setSize(w, h, false);
-    const hw = Math.round(w / 2), hh = Math.round(h / 2);
-    sceneRT.setSize(w, h); atmosRT.setSize(w, h); dofRT.setSize(hw, hh); raysRT.setSize(hw, hh);
-    rays.material.uniforms.uAspect.value.set(w / h, 1);
-    bloom.setSize(hw, hh);
-    fin.material.uniforms.uRes.value.set(w, h);
-    dof.material.uniforms.uTexel.value.set(1 / hw, 1 / hh);
+  // ---- quality state (Graphics + Display settings)
+  const Q = {
+    msaa: 4, ssaa: 1, fsr: 1, fsrName: 'off', ao: 0, mbCam: 0, bloomQ: 'med', na: false,
+    w: width, h: height, iw: width, ih: height,
+  };
+  const FSRC = { off: 1, ultra: 2.0, perf: 1.7, bal: 1.5, qual: 1.3, uqual: 1.2 };
+  const AOC = { off: [0, 0, 0], low: [0.55, 0.9, 1], med: [0.85, 1.3, 1], high: [1.15, 1.8, 1] };
+  const MBC = { off: 0, low: 0.3, med: 0.5, high: 0.72 };
+  const BLOOMQ = { off: 0, low: 0.55, med: 1, high: 1.4 };
+  function applyGraphics() {
+    const g = values().graphics;
+    const d = values().display;
+    Q.msaa = [0, 2, 4, 8, 16][['0', '2', '4', '8', '16'].indexOf(String(g.aa))] ?? 4;
+    Q.ssaa = { off: 1, '2': 1.414, '4': 2, '8': 2.828 }[String(g.ssaa)] || 1;
+    Q.fsr = FSRC[g.fsrUpscale] || 1;
+    Q.fsrName = g.fsrUpscale;
+    Q.na = !!g.fsrNa;
+    Q.mbCam = MBC[g.mbCam] ?? 0;
+    const a = AOC[g.ao] || AOC.off;
+    ao.material.uniforms.uAoStrength.value = a[0];
+    ao.material.uniforms.uAoRadius.value = a[1];
+    atmos.material.uniforms.uAoOn.value = a[2];
+    const bq = BLOOMQ[g.bloom] ?? 1;
+    bloom.strength = L.bloom * bq;
+    bloom.enabled = g.bloom !== 'off';
+    const ir = internalRes();
+    Q.iw = ir ? ir[0] : Q.w;
+    Q.ih = ir ? ir[1] : Q.h;
+    resizeTargets();
   }
-  setSize(width, height);
+  function resizeTargets() {
+    const s = Q.ssaa / Q.fsr;                                     // supersampling multiplies, FSR divides
+    const w = Math.max(64, Math.min(8192, Math.round(Q.iw * s))), h = Math.max(64, Math.min(8192, Math.round(Q.ih * s)));
+    renderer.setSize(Q.w, Q.h, false);
+    const hw = Math.round(w / 2), hh = Math.round(h / 2);
+    sceneRT.samples = Q.msaa;
+    sceneRT.setSize(w, h); histRT.setSize(w, h); atmosRT.setSize(w, h);
+    dofRT.setSize(hw, hh); raysRT.setSize(hw, hh); aoRT.setSize(hw, hh);
+    backRT.setSize(Q.w, Q.h); frontRT.setSize(Q.w, Q.h);
+    sceneRT.depthTexture.image.width = w; sceneRT.depthTexture.image.height = h;
+    sceneRT.depthTexture.dispose();
+    rays.material.uniforms.uAspect.value.set(Q.w / Q.h, 1);
+    bloom.setSize(hw, hh);
+    fin.material.uniforms.uRes.value.set(Q.w, Q.h);
+    dof.material.uniforms.uTexel.value.set(1 / hw, 1 / hh);
+    ao.material.uniforms.uTexel.value.set(1.6 / w, 1.6 / h);
+    histRTClear = true;
+  }
+  let histRTClear = true;
+  on('graphics.*', applyGraphics);
+  on('display.*', applyGraphics);
+  applyGraphics();
 
-  // quality tier: sustained frames over budget (EMA > 20 ms for 2 s) step the scene MSAA 4× → 2× → off. Never steps
-  // back up (no oscillation). ?hq pins full quality (captures).
+  function setSize(w, h) {
+    Q.w = w; Q.h = h;
+    applyGraphics();
+  }
+
+  // quality tier: sustained frames over budget (EMA > 20 ms for 2 s) step the scene MSAA 4× → 2× → off (?hq pins it).
+  // Never steps back up (no oscillation).
   const autoQ = !new URLSearchParams(location.search).has('hq');
   let lastT = 0, ema = 16.7, slow = 0;
   function tier(now) {
@@ -281,28 +382,66 @@ export function createPost({ canvas, width, height }) {
     if (slow > 120) { sceneRT.samples = sceneRT.samples > 2 ? 2 : 0; sceneRT.dispose(); slow = 0; ema = 16.7; }
   }
 
+  // camera speed (for the motion-blur weight): position + rotation delta per frame, eased
+  const lastPos = new THREE.Vector3(), lastQuat = new THREE.Quaternion();
+  let camSpeed = 0, haveCam = false, mbWeight = 0, naAcc = null;
+  const jitter = new THREE.Vector2();
+  let naBlend = 0.88;
+
   return {
     /** Warm-up (main.js, behind the loading card / ink wipe): compile the scene's programs for the pass that draws them,
      *  into sceneRT (linear working space). Compiled with the canvas bound they came out as the sRGB-output variant, which
      *  the scene never uses: every real program then compiled on its first drawn frame (a crowd pool first shown a
-     *  second into the battle stalled it there). */
+     *  second into the battle stalled it there). Fails open: a compile that never lands cannot hold the game hostage. */
     compile(scene, camera) {
       renderer.setRenderTarget(sceneRT);
-      const p = renderer.compileAsync(scene, camera);             // programs are chosen synchronously, in this call
+      const p = renderer.compileAsync(scene, camera).catch((e) => console.warn('compile', e));
       renderer.setRenderTarget(null);
       return p;
     },
     setSize, setLook,
-    /** focus: world point the camera frames (hero) → DoF focus plane; flash: white screen flash (0..1). */
+    /** One real frame: the whole chain into backRT. The screen is not touched until present(). */
     render(scene, camera, time, focus, flash) {
       tier(performance.now());
+      const g = fin.material.uniforms;
+      // FSR Native AA: jitter the projection and accumulate into histRT (the atmos pass reads the history, not the raw frame)
+      const na = Q.na && Q.fsr === 1;
+      if (na) {
+        jitter.set((Math.random() - 0.5) * 0.0012, (Math.random() - 0.5) * 0.0012);
+        const camSpeedNow = haveCam ? camera.position.distanceTo(lastPos) + camera.quaternion.angleTo(lastQuat) * 4 : 1;
+        naBlend = camSpeedNow > 0.08 ? 0.55 : 0.88;
+        camera.projectionMatrix.elements[8] += jitter.x * 2; camera.projectionMatrix.elements[9] += jitter.y * 2;
+        camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+      }
       renderer.setRenderTarget(sceneRT);
       renderer.render(scene, camera);
+      if (na) {
+        camera.projectionMatrix.elements[8] -= jitter.x * 2; camera.projectionMatrix.elements[9] -= jitter.y * 2;
+        camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+        // hist = mix(hist, scene, 1-blend) — first frame after a resize starts from the raw frame
+        const acc = naAcc || (naAcc = new FullScreenQuad(new THREE.ShaderMaterial({
+          vertexShader: quadVS, fragmentShader: `uniform sampler2D tCur, tPrev; uniform float uA; varying vec2 vUv;
+            void main() { gl_FragColor = mix(texture2D(tCur, vUv), texture2D(tPrev, vUv), uA); }`,
+          uniforms: { tCur: { value: sceneRT.texture }, tPrev: { value: histRT.texture }, uA: { value: 0.9 } },
+          depthTest: false, depthWrite: false, toneMapped: false,
+        })));
+        acc.material.uniforms.uA.value = histRTClear ? 0 : naBlend;
+        renderer.setRenderTarget(histRT); acc.render(renderer);
+        atmos.material.uniforms.tColor.value = histRT.texture;
+        histRTClear = false;
+      } else if (naAcc) {
+        atmos.material.uniforms.tColor.value = sceneRT.texture;
+        histRTClear = true;
+      }
 
       const a = atmos.material.uniforms;
       a.uProjInv.value.copy(camera.projectionMatrixInverse);
       a.uCamWorld.value.copy(camera.matrixWorld);
       a.uCamPos.value.copy(camera.position);
+      if (a.uAoOn.value > 0) {
+        ao.material.uniforms.uProjInv.value.copy(camera.projectionMatrixInverse);
+        renderer.setRenderTarget(aoRT); ao.render(renderer);
+      }
       renderer.setRenderTarget(atmosRT); atmos.render(renderer);
 
       const f = camera.position.distanceTo(focus);
@@ -312,10 +451,10 @@ export function createPost({ canvas, width, height }) {
       u.uFocus.value = f; u.uBandN.value = Math.max(L.bandNear, f * 0.22); u.uBandF.value = Math.max(L.bandFar, f * 0.6);
       renderer.setRenderTarget(dofRT); dof.render(renderer);
 
-      bloom.render(renderer, null, dofRT, 1 / 60, false);
+      if (bloom.enabled) bloom.render(renderer, null, dofRT, 1 / 60, false);
+      else { renderer.setRenderTarget(bloom.renderTargetsHorizontal[0]); renderer.clear(); }
 
       // god rays: sun's screen position; fade out as it leaves the frame or goes behind the camera
-      const g = fin.material.uniforms;
       sunNdc.copy(SUN_DIR).multiplyScalar(800).add(camera.position).project(camera);
       const facing = camera.getWorldDirection(camFwd).dot(SUN_DIR);
       const off = Math.max(Math.abs(sunNdc.x), Math.abs(sunNdc.y));
@@ -328,7 +467,29 @@ export function createPost({ canvas, width, height }) {
       }
 
       g.uTime.value = time; g.uFlash.value = flash;
-      renderer.setRenderTarget(null); fin.render(renderer);
+      // FSR upscaler: the low-res render lands here; the final pass's unsharp mask becomes the RCAS-style reconstruct
+      g.uSharpen.value = L.sharpen + (Q.fsr > 1 ? 0.28 + 0.1 * Q.fsr : 0);
+      renderer.setRenderTarget(backRT); fin.render(renderer);
+
+      // camera motion-blur weight + the ping-pong swap (present() shows the mix)
+      const sp = haveCam ? camera.position.distanceTo(lastPos) + camera.quaternion.angleTo(lastQuat) * 6 : 0;
+      camSpeed = camSpeed * 0.6 + sp * 0.4;
+      lastPos.copy(camera.position); lastQuat.copy(camera.quaternion); haveCam = true;
+      mbWeight = Q.mbCam ? Math.min(Q.mbCam, camSpeed * Q.mbCam * 6) : 0;
     },
+    /** Show a frame: w 0 = the latest real frame, 0..1 crossfades toward the one before it (frame-gen synth frames). */
+    present(w = 0) {
+      present.material.uniforms.tA.value = backRT.texture;
+      present.material.uniforms.tB.value = frontRT.texture;
+      present.material.uniforms.uMix.value = w < 0.003 ? 0 : Math.min(1, w);
+      renderer.setRenderTarget(null);
+      present.render(renderer);
+      if (w < 0.003) {
+        const t = backRT;
+        backRT = frontRT; frontRT = t;          // ping-pong: the next real frame renders into the old front
+      }
+    },
+    /** The camera motion-blur weight the last real frame produced (the scheduler adds it to the frame-gen mix). */
+    mbWeight: () => mbWeight,
   };
 }

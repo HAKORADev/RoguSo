@@ -31,6 +31,11 @@ import { read, write } from './storage.js';
 export const unlocked = (d) => !locked(d.id);
 let cur = DIFFS.find((d) => d.id === read('settings.json')?.difficulty && unlocked(d)) || DIFFS[1];
 
+/** Re-read the pick after the shell bridge has answered (storage.init). */
+export function reloadDifficulty() {
+  cur = DIFFS.find((d) => d.id === read('settings.json')?.difficulty && unlocked(d)) || DIFFS[1];
+}
+
 export const difficulty = () => cur;
 export function setDifficulty(d) {
   cur = d;

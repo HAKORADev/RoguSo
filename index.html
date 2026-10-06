@@ -290,8 +290,10 @@
      gold leaf in the HUD's language: brush calligraphy (--brush / --kai), red seals, gold-leaf gradients; 1rem = 1/72 vh. */
   :root { --leaf: linear-gradient(#fffbe0, #ffd865 42%, #d69a2c 64%, #9a5a10); --paper: #f4ead8; --dim: #b9a888; --sealr: #b3261e; --shu: #2c6a48; }
   #title, #select { overflow: hidden; }
-  #title button, #select button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
-  #title button:focus-visible, #select button:focus-visible { outline: .15rem solid rgba(242,193,78,.7); outline-offset: .3rem; }
+  #title button, #select button, #settings button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  #title button:focus-visible, #select button:focus-visible, #settings button:focus-visible { outline: .15rem solid rgba(242,193,78,.7); outline-offset: .3rem; }
+  /* hitbox law: a button is clickable exactly where it is drawn — decorative overlays inside it never capture */
+  #menu button::after, .swash, .t-lk, .t-rk, .s-card > i, .st-row em, #ink, .ink-wait { pointer-events: none; }
   .t-veil, .s-veil { position: absolute; inset: 0; pointer-events: none; }
   /* key chips on the screens and the pause menu (the HUD has its own, #hud kbd); .pad = a round gamepad face button */
   .scr kbd, #menu kbd { display: inline-block; font: 600 max(12px, 1.3rem)/1 var(--sans); padding: .3rem .5rem; margin-right: .3rem; min-width: 1rem;
@@ -910,6 +912,85 @@
   @keyframes rsIn { from { opacity: 0; transform: translateX(-2rem); } }
   @keyframes rsStamp { from { opacity: 0; transform: scale(1.7) rotate(-6deg); } }
 
+  /* ---- Settings (#settings, settings.js): same ink band language, four tabs, data-driven rows ---- */
+  #settings { overflow: hidden; }
+  #settings .st-head { position: absolute; left: 7rem; top: 3.2rem; }
+  #settings .st-head h2 { margin: 0; font: 700 6.4rem/1 var(--brush); letter-spacing: .4rem; color: #f9f3e8;
+    text-shadow: .25rem .35rem 0 rgba(0,0,0,.6); }
+  #settings .st-head small { display: block; font: 600 max(13px, 1.5rem)/1 var(--sans); letter-spacing: .5em; margin-top: .7rem; color: var(--dim); }
+  #settings .st-note { position: absolute; right: 7rem; top: 4.4rem; font: 600 max(13px, 1.6rem)/1.3 var(--sans); color: #e8b0a0; text-align: right; max-width: 44rem; }
+  #settings .st-tabs { position: absolute; left: 7rem; top: 16.5rem; display: flex; gap: .8rem; }
+  #settings .st-tabs button { position: relative; padding: .8rem 2.4rem .9rem; font: 700 2.6rem/1 var(--brush); letter-spacing: .3rem; color: #d8c9ab;
+    background: rgba(18,12,9,.72); box-shadow: 0 0 0 .1rem rgba(214,170,90,.25), 0 .3rem .8rem rgba(0,0,0,.4); }
+  #settings .st-tabs button.on { color: #1a120d; background: linear-gradient(#ffe7a3, #f2c14e 55%, #c98a22); box-shadow: 0 0 0 .15rem #5a3a10, 0 .4rem 1.2rem rgba(0,0,0,.5); }
+  #settings .st-tabs button:hover:not(.on) { color: #fff2d8; box-shadow: 0 0 0 .12rem rgba(242,193,78,.5), 0 .3rem .8rem rgba(0,0,0,.4); }
+  #settings .st-body { position: absolute; left: 7rem; right: 7rem; top: 25.5rem; bottom: 9rem; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: #b8893a transparent; }
+  .st-pane { display: grid; grid-template-columns: minmax(30rem, 46rem) minmax(30rem, 46rem); gap: 1.1rem 4rem; align-content: start; }
+  .st-pane > .st-sect { grid-column: 1 / -1; }
+  .st-row { display: grid; grid-template-columns: 1fr auto; column-gap: 2rem; align-items: center; min-height: 5.4rem;
+    padding: .6rem 1.4rem .7rem; background: linear-gradient(90deg, rgba(26,18,14,.88), rgba(18,12,9,.55));
+    box-shadow: 0 0 0 .1rem rgba(214,170,90,.2), 0 .3rem .8rem rgba(0,0,0,.3); }
+  .st-row > label { font: 700 2.1rem/1.15 var(--brush); letter-spacing: .12rem; color: #efe3cf; }
+  .st-row em.st-tag { display: inline-block; margin-left: 1rem; padding: .15rem .6rem; font: 700 max(12px, 1.25rem)/1.2 var(--sans); letter-spacing: .12em;
+    font-style: normal; color: #ffd9a0; background: rgba(184,120,28,.4); box-shadow: 0 0 0 .1rem rgba(242,193,78,.5); border-radius: .3rem; vertical-align: .35rem; }
+  .st-row:hover { box-shadow: 0 0 0 .12rem rgba(242,193,78,.45), 0 .3rem .8rem rgba(0,0,0,.3); }
+  .st-sl { display: flex; align-items: center; gap: 1.4rem; min-width: 22rem; }
+  .st-track { position: relative; flex: 1; height: 1.3rem; background: rgba(10,7,6,.8); box-shadow: 0 0 0 .1rem #6b4a1c, inset 0 .2rem .5rem rgba(0,0,0,.6); cursor: ew-resize; }
+  .st-track i { position: absolute; inset: 0; width: 50%; transform-origin: 0 50%; background: linear-gradient(#fff2b8, #f2c14e 45%, #b8791c); box-shadow: 0 0 .6rem rgba(255,200,80,.5); }
+  .st-track:hover i { filter: brightness(1.1); }
+  .st-sl b { font: 700 2rem/1 var(--kai); min-width: 5.4rem; text-align: right; color: #ffe3a0; }
+  .st-seg { display: flex; align-items: center; gap: .7rem; max-width: 40rem; }
+  .st-seg button { padding: .5rem 1rem; font: 700 1.8rem/1 var(--kai); color: #ffe3a0; background: rgba(10,7,6,.7); box-shadow: 0 0 0 .1rem #6b4a1c; }
+  .st-seg button:hover { color: #fff6d8; box-shadow: 0 0 0 .12rem rgba(242,193,78,.6); }
+  .st-seg button.dis { opacity: .3; cursor: default; }
+  .st-seg .st-val { min-width: 17rem; text-align: center; font: 700 2.1rem/1.1 var(--kai); color: #f9f0dc; cursor: pointer;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .st-pane .wide { grid-column: 1 / -1; }
+  .st-pane .wide .st-seg { max-width: none; width: 100%; }
+  .st-pane .wide .st-val { flex: 1; min-width: 0; }
+  .st-tgl { padding: .5rem 1.6rem; font: 700 2rem/1 var(--kai); color: #cbb894; background: rgba(10,7,6,.7); box-shadow: 0 0 0 .1rem #6b4a1c; }
+  .st-tgl.on { color: #1a120d; background: linear-gradient(#ffe7a3, #f2c14e 55%, #c98a22); box-shadow: 0 0 0 .12rem #5a3a10; }
+  .st-sect { margin: 1.4rem 0 .2rem; padding-bottom: .5rem; font: 700 max(13px, 1.5rem)/1 var(--sans); letter-spacing: .35em; color: #cdb994;
+    border-bottom: .1rem solid; border-image: linear-gradient(90deg, rgba(214,170,90,.6), transparent) 1; }
+  .st-note2 { grid-column: 1 / -1; margin: .6rem 0 0; font: 500 max(13px, 1.5rem)/1.5 var(--sans); color: var(--dim); }
+  .st-cbar { grid-column: 1 / -1; display: flex; gap: 1.2rem; margin-bottom: .4rem; }
+  .st-cbar button { padding: .7rem 2.2rem .8rem; font: 700 2.2rem/1 var(--brush); letter-spacing: .25rem; color: #f2e2c4;
+    background: rgba(18,12,9,.72); box-shadow: 0 0 0 .12rem rgba(214,170,90,.4), 0 .3rem .8rem rgba(0,0,0,.4); }
+  .st-cbar button:hover { color: #fff2d8; }
+  .st-cbar .st-modify.on { color: #1a120d; background: linear-gradient(#ffe7a3, #f2c14e 55%, #c98a22); box-shadow: 0 0 0 .15rem #5a3a10; }
+  .st-map { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(30rem, 46rem) minmax(30rem, 46rem); gap: 1.1rem 4rem; align-content: start; }
+  .st-map .st-sect { grid-column: auto; }
+  .st-map.armed .st-chip { cursor: pointer; }
+  .st-slots { display: flex; gap: .8rem; }
+  .st-chip { min-width: 10rem; text-align: center; padding: .45rem 1.1rem .5rem; font: 700 1.9rem/1 var(--kai); letter-spacing: .1rem; color: #f2e2c4;
+    background: rgba(10,7,6,.7); box-shadow: 0 0 0 .1rem #6b4a1c; }
+  .st-chip.empty { color: #8d7c62; }
+  .st-chip:hover { box-shadow: 0 0 0 .12rem rgba(242,193,78,.6); color: #fff6d8; }
+  .st-map.armed .st-chip { color: #ffe9b0; box-shadow: 0 0 0 .12rem rgba(242,193,78,.55); }
+  .st-capture { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(8,5,4,.72); cursor: none; }
+  .st-capture p { margin: 0; padding: 2.4rem 5rem 2.8rem; text-align: center; background: rgba(18,12,9,.95); box-shadow: 0 0 0 .16rem #f2c14e, 0 0 3rem rgba(0,0,0,.8); }
+  .st-capture b { display: block; font: 700 3.6rem/1 var(--brush); letter-spacing: .3rem; color: #fff2d0; }
+  .st-capture small { display: block; margin-top: .8rem; font: 600 max(13px, 1.5rem)/1 var(--sans); letter-spacing: .12em; color: var(--dim); }
+  .st-modal { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; background: rgba(8,5,4,.6); }
+  .st-mcard { padding: 2rem 3rem 2.4rem; background: rgba(18,12,9,.97); box-shadow: 0 0 0 .16rem rgba(179,38,30,.9), 0 0 3rem rgba(0,0,0,.8); }
+  .st-q { margin: 0 0 1.6rem; font: 700 2.4rem/1.4 var(--kai); color: #f6ecd9; max-width: 60rem; }
+  .st-q b { color: #ffd66a; }
+  .st-mbtns { display: flex; gap: 1.2rem; }
+  .st-mbtns button { padding: .8rem 2.4rem .9rem; font: 700 2.2rem/1 var(--brush); letter-spacing: .2rem; color: #f2e2c4;
+    background: rgba(10,7,6,.7); box-shadow: 0 0 0 .12rem rgba(214,170,90,.4); }
+  .st-mbtns button:hover { color: #fff2d8; box-shadow: 0 0 0 .14rem #f2c14e; }
+  #settings .st-tabs button, #settings .st-cbar button, #settings .st-mbtns button { cursor: pointer; }
+  /* error toast (index.html inline script): anything that throws says so on screen */
+  #errtoast { position: fixed; right: 1.4rem; top: 1.4rem; z-index: 40; max-width: 46rem; padding: 1rem 1.5rem 1.2rem; display: none;
+    background: rgba(60,10,8,.94); box-shadow: 0 0 0 .14rem rgba(255,120,90,.8), 0 .4rem 1.6rem rgba(0,0,0,.7); }
+  #errtoast.on { display: block; }
+  #errtoast b { display: block; font: 700 max(13px, 1.6rem)/1.3 var(--sans); color: #ffd9c8; }
+  #errtoast small { display: block; margin-top: .3rem; font: 500 max(12px, 1.3rem)/1.35 var(--sans); color: #f0b8a4; word-break: break-all; }
+  /* auto-fitted text (fittext.js): nothing may walk out of its box */
+  .s-card b, .s-card small, .s-name h1, .s-epi b, .s-wpn b, .s-musou b, .s-rec b, .s-fac i, .t-chs b, .t-chs small,
+  .t-dif b, .l-name h1, .l-en, .l-ch b, .l-tip b, .t-ccard b, .t-ccard small { overflow: hidden; text-overflow: ellipsis; }
+
   /* reduced motion: every CSS animation / transition lands at once; the ink-wait ring stands still, the prologue doesn't lift */
   @media (prefers-reduced-motion: reduce) {
     *, ::before, ::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
@@ -931,6 +1012,7 @@
 </div>
 <!-- flow screens (main.js). ui lane: #title #select · story lane: #prologue #result -->
 <div id="title" class="scr" hidden></div>
+<div id="settings" class="scr" hidden></div>
 <div id="select" class="scr" hidden></div>
 <div id="loading" class="scr" hidden></div>
 <div id="prologue" class="scr" hidden></div>
@@ -944,6 +1026,16 @@
     const w = document.querySelector('#ink.boot .ink-wait');
     if (w) w.innerHTML = '<p>Failed to load<small>Force-reload the page (Ctrl+Shift+R)</small></p>';
   }, true);
+  // error toast: the shell has no devtools, so anything that throws at runtime must say so on screen (first error wins,
+  // it stays until reload)
+  const toast = (msg) => {
+    let t = document.getElementById('errtoast');
+    if (!t) { t = document.createElement('div'); t.id = 'errtoast'; document.body.append(t); }
+    t.innerHTML = '<b>Something went wrong</b><small>' + String(msg).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])).slice(0, 220) + '</small>';
+    t.classList.add('on');
+  };
+  addEventListener('error', (e) => { if (e.error || e.message) toast(e.message || e.error); });
+  addEventListener('unhandledrejection', (e) => toast(e.reason?.message || e.reason));
 </script>
 <script type="module" src="./src/main.js"></script>
 </body>

@@ -6,11 +6,20 @@
 // left (≈ 0.4 s to cover, the next screen is swapped in under full ink, ≈ 0.5 s to uncover). Transform-only animation
 // of one composited layer: no layout work, holds 60 fps at any size.
 import { noiseBuf } from '../audio/bank.js';
+import { createOut } from '../core/outstage.js';
+import { values, on as onSetting } from '../core/settings.js';
 
 // ---------------------------------------------------------------- sound (own tiny WebAudio graph; audio.js is battle-only)
-let ac = null;
+let ac = null, acOut = null, sfxGain = null;
 function actx() {
-  if (!ac) try { ac = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 }); } catch { return null; }
+  if (!ac) {
+    try {
+      ac = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
+      acOut = createOut(ac);
+      sfxGain = ac.createGain(); sfxGain.gain.value = values().sound.sfx; sfxGain.connect(acOut);
+      onSetting('sound.sfx', (v) => { if (sfxGain) sfxGain.gain.value = v; });
+    } catch { return null; }
+  }
   if (ac.state === 'suspended') ac.resume();
   return ac;
 }
@@ -25,7 +34,7 @@ function voice(c, { type = 'sine', f0, f1 = f0, gain, dur, at = 0, lp = 0, bp = 
   else { src = c.createOscillator(); src.type = type; src.frequency.setValueAtTime(f0, t); src.frequency.exponentialRampToValueAtTime(f1, t + dur); }
   let n = src;
   if (lp || bp) { const f = c.createBiquadFilter(); f.type = lp ? 'lowpass' : 'bandpass'; f.frequency.value = lp || bp; f.Q.value = lp ? 0.7 : 4; n.connect(f); n = f; }
-  n.connect(g).connect(c.destination);
+  n.connect(g).connect(sfxGain || acOut || c.destination);
   src.start(t); src.stop(t + dur + 0.02);
 }
 const SFX = {

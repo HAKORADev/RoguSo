@@ -11,6 +11,7 @@ import { bufferInput, stepCombo } from './combo.js';
 import { stepLocomotion, stepPhysics, setState, LOCO } from './locomotion.js';
 import { applyRoll, createDodgeGhosts } from './anims/locomotion.js';
 import { clampWalk, ground } from '../world/map.js';
+import { attachContact } from '../vfx/contact.js';
 import { emit } from '../core/events.js';
 import { CHARS } from '../chars/index.js';
 
@@ -136,6 +137,7 @@ export function createHeroView(scene, hero) {
   scene.add(root);
   const rig = createRig(K);
   root.add(rig.root);
+  const contact = attachContact(root, 2.3);          // grounded blob: the shadow that stops the float
   const model = K.model(rig);
   const secondary = K.secondary(root, rig, model.material, hero);
   const ghosts = createDodgeGhosts(root, model);    // dodge afterimages + i-frame flash (locomotion-dodge)

@@ -17,6 +17,7 @@
 // randomness is Math.random, never the sim RNG. Starts on the first user gesture.
 import { on } from '../core/events.js';
 import { buildBank, bakeVoice, makeIR, noiseBuf } from './bank.js';
+import { createOut, watchGains } from '../core/outstage.js';
 
 const rnd = (a, b) => a + (b - a) * Math.random();
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -86,7 +87,7 @@ export function createAudio(game) {
       const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; b.gain.value = g; return b;
     });
     ceiling = clip;                            // input after the compressor: the Musou riser rides through the inhale here
-    eq.reduce((n, b) => n.connect(b), mix).connect(comp).connect(post).connect(clip).connect(ctx.destination);
+    eq.reduce((n, b) => n.connect(b), mix).connect(comp).connect(post).connect(clip).connect(createOut(ctx));
     sfx = ctx.createGain(); sfx.connect(mix);
     sides = SIDE.map(() => ctx.createGain());
     underBus = ctx.createGain(); underBus.connect(sides[0]).connect(sfx);
@@ -96,6 +97,12 @@ export function createAudio(game) {
     bedDuck = ctx.createGain(); bedDuck.connect(mix);
     bedBus = ctx.createGain(); bedBus.connect(sides[1]).connect(bedDuck);
     const bedSend = ctx.createGain(); bedSend.gain.value = 0.4; bedDuck.connect(bedSend).connect(revIn);
+    // the Sound tab: SFX slider rides the sfx + voice buses, Music the bed (bed + drums + riff)
+    watchGains(({ sfx: sg, music: mg }) => {
+      if (sfx) sfx.gain.value = sg;
+      if (vox) vox.gain.value = VOX * (0.35 + 0.65 * sg);
+      if (bedDuck) bedDuck.gain.value = mg;
+    });
     startBed();
   }
   addEventListener('pointerdown', start);

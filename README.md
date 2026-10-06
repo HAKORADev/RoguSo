@@ -13,16 +13,18 @@ restructured, rebadged, and carried by a native Windows shell instead of a hoste
 - `index.html`, `src/`, `vendor/` — the game itself (three.js voxel renderer, no build step, runs in any
   WebGL2 browser)
 - `shell/` — the Windows host: a small C++ Win32 exe that opens one internal WebView2 (Edge) tab, no
-  bundled browser, no Electron. The whole web build is embedded in the exe and extracted on first run.
+  bundled browser, no Electron. The whole web build is embedded in the exe and served from memory —
+  nothing is unpacked to disk.
 - `tools/` — the icon renderer/capturer, the embedder that packs the web build into the shell, and the
   port scripts
 - `.github/workflows/native.yml` — builds the exe and the plain web zip on demand (artifacts only)
 
 ## Run it
 
-**Windows:** grab the `RoguSo-windows-x64` artifact, put `RoguSo.exe` anywhere, double-click. The first
-run unpacks the game into your Documents folder; every run after that starts straight into the title
-screen.
+**Windows:** grab the `RoguSo-windows-x64` artifact, put `RoguSo.exe` anywhere, double-click. The game
+lives inside the exe and runs from memory; your data (`save.json`, `settings.json`, `controls.json`)
+lives in `Documents/RoguSo/`. F11 toggles fullscreen. In the title menu, Settings holds sound, display,
+graphics and the control bindings.
 
 **Any browser:** serve the folder and open it.
 

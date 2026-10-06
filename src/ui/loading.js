@@ -19,11 +19,11 @@ export function modeLabel(c) {
 }
 // [text, char id | undefined = any officer] — keep in step with the controls table (title.js CONTROLS)
 const TIPS = [
-  'Tap J for the full combo; press K mid-combo for a charge attack.',
-  'When the gold gauge is full, press I to unleash your Musou.',
-  'L or Shift dodges; the roll slips through a blow.',
-  'R recenters the camera behind you, or onto the nearest officer.',
-  'Click the field to steer the camera with the mouse; Q / E turn it too.',
+  ['Tap J for the full combo; press K mid-combo for a charge attack.'],
+  ['When the gold gauge is full, press I to unleash your Musou.'],
+  ['L or Shift dodges; the roll slips through a blow.'],
+  ['R recenters the camera behind you, or onto the nearest officer.'],
+  ['Click the field to steer the camera with the mouse; Q / E turn it too.'],
   ['Hold K / right click to draw and aim (standing or running); a full draw pierces a line.', 'huangzhong'],
   ['Aim for an officer\'s head: a headshot hits far harder.', 'huangzhong'],
 ];

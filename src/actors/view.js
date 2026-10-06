@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { createRig, sampleClip, blendPose, POSE_SIZE, HERO_SCALE } from '../hero/rig.js';
 import { ground } from '../world/map.js';
+import { attachContact } from '../vfx/contact.js';
 import { ACTOR } from './actors.js';
 
 const DECAL_VS = /* glsl */`
@@ -48,6 +49,7 @@ export function createActorsView(scene, game, compile) {
   function build(a) {
     const K = a.kit, root = new THREE.Group(), rig = createRig(K);
     root.add(rig.root); group.add(root);
+    attachContact(root, 2.3 * (a.scale || 1));         // grounded blob: no officer floats
     const m = K.model(rig);
     const v = { a, K, root, rig, m, sec: K.secondary(root, rig, m.material), from: new Float32Array(POSE_SIZE),
       last: new Float32Array(POSE_SIZE), blend: 1, id: null, seq: null, ready: !compile, fresh: true };
