@@ -5,7 +5,9 @@
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <WebView2.h>
+#include <WebView2EnvironmentOptions.h>
 #include <wrl/client.h>
+#include <wrl/implements.h>
 #include <algorithm>
 #include <cstdio>
 #include <string>
