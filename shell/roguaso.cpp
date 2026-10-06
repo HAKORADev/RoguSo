@@ -173,7 +173,7 @@ static void HandleMessage(const std::wstring& msg) {
         std::string json = "{\"op\":\"readAll\",\"files\":{";
         bool first = true;
         for (const wchar_t* n : DATA_FILES) {
-            const bool exists = GetFileAttributesW((DataRoot() + L"\\" + n).c_str()) != INVALID_HANDLE_VALUE;
+            const bool exists = GetFileAttributesW((DataRoot() + L"\\" + n).c_str()) != INVALID_FILE_ATTRIBUTES;
             if (!first) json += ",";
             first = false;
             json += "\"" + WideToUtf8(n) + "\":";
@@ -217,7 +217,7 @@ public:
     HRESULT STDMETHODCALLTYPE Invoke(HRESULT, ICoreWebView2Controller* controller) override {
         g_controller = controller;
         ComPtr<ICoreWebView2> web;
-        g_controller->get_Webview(&web);
+        g_controller->get_CoreWebView2(&web);
         g_web = web;
         ICoreWebView2Settings* settings = nullptr;
         if (SUCCEEDED(web->get_Settings(&settings)) && settings) {
@@ -326,15 +326,12 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int nCmdShow) {
     ExtractGame();
     MkDir(RuntimeDir());
 
-    COREWEBVIEW2_ENVIRONMENT_OPTIONS options;
-    wchar_t args[] = L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
-    options.AdditionalBrowserArguments = args;
-    options.Language = nullptr;
-    options.TargetCompatibleBrowserVersion = L"95.0.1020.44";
-    options.AllowSingleSignOnUsingOSPrimaryAccount = FALSE;
+    auto options = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
+    options->put_AdditionalBrowserArguments(L"--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
+    options->put_TargetCompatibleBrowserVersion(L"95.0.1020.44");
 
     static EnvironmentHandler envHandler;
-    CreateCoreWebView2EnvironmentWithOptions(nullptr, RuntimeDir().c_str(), &options, &envHandler);
+    CreateCoreWebView2EnvironmentWithOptions(nullptr, RuntimeDir().c_str(), options.Get(), &envHandler);
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {

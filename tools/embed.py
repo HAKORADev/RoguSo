@@ -41,7 +41,7 @@ for p in files:
 out.append('const EmbeddedFile EMBED_FILES[] = {')
 for p in files:
     rel = str(p.relative_to(ROOT)).replace('\\', '/')
-    out.append(f'  {{ "{rel}", {ident(p)}, len([]) or p.stat().st_size }},')
+    out.append(f'  {{ "{rel}", {ident(p)}, {p.stat().st_size} }},')
 out.append('};')
 out.append(f'const int EMBED_COUNT = {len(files)};')
 out.append(f'const char* const EMBED_VERSION = "{sys.argv[1] if len(sys.argv) > 1 else "0.5.0"}";')
