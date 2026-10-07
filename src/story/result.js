@@ -76,7 +76,7 @@ export function createResult(el, flow) {
       const tds = [...el.querySelectorAll('.rs-stats td:not(.rs-new)')], t0 = performance.now() + 700;
       const tick = (now) => {
         let busy = false;
-        rows.forEach(([, , v, fmt], i) => {
+        rows.forEach(([, v, fmt], i) => {
           const u = Math.max(0, Math.min(1, (now - t0 - i * 350) / 700));
           if (u < 1) busy = true;
           tds[i].textContent = fmt(Math.round(v * (1 - (1 - u) ** 3)));

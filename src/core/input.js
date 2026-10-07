@@ -20,7 +20,7 @@ export const MOVE_KEYS = ['up', 'down', 'left', 'right'];
 
 const DEFAULT_ACTIONS = {
   attack: ['KeyJ', 'Mouse0'], charge: ['KeyK', 'Mouse2'], jump: ['Space', null], dodge: ['KeyL', 'ShiftLeft'],
-  musou: ['KeyI', null], target: ['KeyR', 'Pad4'],
+  musou: ['KeyI', 'Mouse1'], target: ['KeyR', 'Pad4'],
 };
 const DEFAULT_MOVE = { up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'] };
 const DEFAULT_CAM = { left: ['KeyQ'], right: ['KeyE'] };
@@ -39,6 +39,8 @@ export function applyBindings(b) {
     move: Object.fromEntries(MOVE_KEYS.map((m) => [m, sanitize(b.move?.[m], DEFAULT_MOVE[m])])),
     camera: { left: sanitize(b.camera?.left, DEFAULT_CAM.left), right: sanitize(b.camera?.right, DEFAULT_CAM.right) },
   };
+  // migrate saves from before MMB carried the Musou (a user could not have unbound it: it never existed)
+  if (B.actions.musou[0] === 'KeyI' && B.actions.musou[1] === null) B.actions.musou[1] = 'Mouse1';
 }
 const sanitize = (slots, def) => {
   const out = [slots?.[0] || null, slots?.[1] || null];
@@ -98,7 +100,7 @@ export function labelSlot(code) {
 }
 
 const LOOK = {
-  mouseYaw: 0.0024, mousePitch: 0.0018,   // rad per px of pointer-lock movement, before the sensitivity setting
+  mouseYaw: 0.0024, mousePitch: 0.0022,   // rad per px of pointer-lock movement, before the sensitivity setting
   keyRate: [0.9, 2.6], keyRamp: 21,        // camera keys: rad/s on the tap → held, steps to reach full rate
   padYaw: 2.8, padPitch: 1.3, padEase: 0.3, padDead: 0.18,   // right stick: max rad/s, per-step easing, radial deadzone
 };

@@ -18,6 +18,7 @@ import { Vector3 } from 'three';
 import { on } from '../core/events.js';
 import { ST } from '../crowd/crowd.js';
 import { ACTOR } from '../actors/actors.js';
+import { bindings, labelSlot } from '../core/input.js';
 import { NPCS } from '../chars/npc/index.js';
 import { ground, zoneAt, GATES, MAP, TERRAIN as G, ROUTE, WATER, walkIn, openWater, waterPoint } from '../world/map.js';
 import { CHARS, paintPortrait } from '../chars/index.js';
@@ -103,7 +104,7 @@ export function createHud(root, game, camera) {
   const dlg = $('.h-dlg'), dlgP = $('.h-dlg p'), dlgS = $('.h-dlg small'), copy = $('.h-copy');
   const target = $('.h-target'), targetB = $('.h-target b'), targetS = $('.h-target span'), targetI = $('.h-target .bar i'), targetE = $('.h-target .bar em');
   const offs = $$('.off').map((el) => ({ el, bd: el.querySelector('.bd'), mk: el.querySelector('.mk'), ld: el.querySelector('.ld'),
-    nm: el.querySelector('b'), en: el.querySelector('span'), bar: el.querySelector('.bar i'), lagEl: el.querySelector('.bar em'), lag: 1 }));
+    nm: el.querySelector('b'), en: el.querySelector('span'), bar: el.querySelector('.bar i'), lagEl: el.querySelector('.bar em'), lag: 1, prevHpF: 1 }));
   const obj = $('.h-obj'), objB = $('.h-obj b'), objS = $('.h-obj small'), dlgCv = $('.h-dlg canvas'), dlgN = $('.h-dlg b i'), dlgE = $('.h-dlg b span');
   const objGo = $('.h-obj .go'), objAr = $('.h-obj .ar'), objD = $('.h-obj .go em'), dlgSeal = $('.h-dlg .dseal');
   const objTm = $('.h-obj .tm'), objTmB = $('.h-obj .tm b'), def = $('.h-def'), defB = $('.h-def b'), defS = $('.h-def span');
@@ -120,9 +121,9 @@ export function createHud(root, game, camera) {
   const reset = () => {
     Object.assign(S, {
       lastCombo: 0, shownChain: 0, chainF: -99, chainQ: [], ghostN: 0, shownKo: 0, koF: -99, mile: 0, mileQ: 0, mileF: -99, busyF: -99,
-      lagHp: 1, lastF: 0, hurtF: -99, actF: 0, band: null, bandQ: [], dlg: null, waveF: -999, allyF: -999, tgt: -1, tgtF: -999, tgtKoF: -999,
+      lagHp: 1, prevHp: 1, lastF: 0, hurtF: -99, actF: 0, band: null, bandQ: [], dlg: null, waveF: -999, allyF: -999, tgt: -1, tgtF: -999, tgtKoF: -999,
       musouF: -999, musouEnd: -999, waves: [], introCut: 0, obj: null, zone: null, defLag: 1,
-      boss: null, bossLag: 1, bossF: -999,                          // boss bar: the actor shown, its lag chunk, last hit frame
+      boss: null, bossLag: 1, bossPrev: 1, bossF: -999,                          // boss bar: the actor shown, its lag chunk, last hit frame
     });
     text($('.h-map .seal'), MAP.tag);                                 // the loaded map (main.js world.load before 'scenario')
     const { foe, ally } = game.army;                                  // armies: morale glyphs, bar colours (index.html vars)
@@ -132,13 +133,15 @@ export function createHud(root, game, camera) {
     text($('.h-intro .zh'), ch.name); text($('.h-intro .seal'), ch.seal); text($('.h-intro .en'), ch.title.toUpperCase());
     text($('.h-intro .sub'), ch.motto); text($('.h-player .name'), ch.name);
     $('.h-copy').innerHTML = ch.lines.copy.join('<br>');
-    // keys row from the kit: an aim mode (kit.moves.aim, Huang Zhong) puts hold-K aim first, before the charge
-    $('.h-intro .keys').innerHTML = `<kbd>WASD</kbd> move · <kbd>J</kbd> attack · ${ch.kit.moves.aim
-      ? '<kbd>K</kbd> hold to aim · mid-combo charge' : '<kbd>K</kbd> charge'}<br>
-      <kbd>Space</kbd> jump · <kbd>L</kbd> dodge · <kbd>I</kbd> musou · <kbd>R</kbd> recenter · <kbd>H</kbd> help`;
+    // keys row from the user's LIVE bindings (settings may have remapped everything; nothing hardcoded here)
+    const Bk = bindings();
+    const keysOf = (a) => Bk.actions[a].filter(Boolean).map((s) => `<kbd>${labelSlot(s)}</kbd>`).join(' / ');
+    $('.h-intro .keys').innerHTML = `<kbd>WASD</kbd> move · ${keysOf('attack')} attack · ${ch.kit.moves.aim
+      ? `${keysOf('charge')} hold to aim · mid-combo charge` : `${keysOf('charge')} charge`}<br>
+      ${keysOf('jump')} jump · ${keysOf('dodge')} dodge · ${keysOf('musou')} musou · ${keysOf('target')} recenter · <kbd>H</kbd> help`;
     paintPortrait($('.h-player canvas'), ch);
     for (const g of chainG) g.f = -99;
-    for (const o of offs) o.lag = 1;
+    for (const o of offs) { o.lag = 1; o.prevHpF = 1; }
   };
   on('scenario', reset);
   // heavy numerals: the rim layer (::before) reads data-t, the gradient face is the inner span
@@ -159,8 +162,8 @@ export function createHud(root, game, camera) {
   };
   // dialogue: speaker is the display name (default: the hero); portrait = CHARS id (default: the hero's) or {seal}
   // (story NPCs: a carved name seal instead of a face). side 'wei' turns the panel's rule and name vermilion.
-  const say = (text, dur = 300, speaker = game.hero.char.name, portrait = game.hero.char.id, side = 'shu') => {
-    S.dlg = { text, f: game.frame, dur };
+  const say = (msg, dur = 300, speaker = game.hero.char.name, portrait = game.hero.char.id, side = 'shu') => {
+    S.dlg = { text: msg, f: game.frame, dur };
     text(dlgN, speaker); text(dlgE, '');
     const seal = portrait.seal;
     if (!seal) paintPortrait(dlgCv, CHARS[portrait] || NPCS[portrait]);
@@ -229,10 +232,14 @@ export function createHud(root, game, camera) {
       const calm = 1 - 0.45 * clamp01((f - S.actF - 240) / 40) * (game.musou.ready() ? 0 : 1);
       set(player, 'opacity', calm.toFixed(2)); set(mapEl, 'opacity', calm.toFixed(2));
 
-      // HP (teal, white lag bar) + 3-segment musou gauge
+      // HP (teal, white lag bar) + 3-segment musou gauge. The white chunk always starts at the hp the hit found —
+      // 40 → 30 animates 40 → 30, never 100 → 30 (the old chunk began at full on the first hit).
       const hp = h.hp / h.hpMax;
-      S.lagHp = f - S.hurtF < 20 ? S.lagHp : Math.max(hp, S.lagHp - 0.008 * df);
+      if (hp > S.prevHp + 1e-4) S.lagHp = hp;                                  // healed: chunk rides at the new hp
+      else if (hp < S.prevHp - 1e-4) S.lagHp = S.prevHp;                       // fresh damage: chunk = pre-hit hp
+      else if (f - S.hurtF >= 20) S.lagHp = Math.max(hp, S.lagHp - 0.008 * df); // held 1/3 s, then drains
       if (S.lagHp < hp) S.lagHp = hp;
+      S.prevHp = hp;
       set(hpI, 'transform', `scaleX(${hp.toFixed(4)})`);
       set(hpE, 'transform', `scaleX(${S.lagHp.toFixed(4)})`);
       player.classList.toggle('low', hp < 0.3);
@@ -370,8 +377,8 @@ export function createHud(root, game, camera) {
       const tKo = tg >= 0 && f - S.tgtKoF < 70 && tg === S.tgt;
       set(target, 'opacity', tg >= 0 && introA < 0.5 ? (tKo ? clamp01((70 - (f - S.tgtKoF)) / 20) : 1).toFixed(2) : '0');
       if (tg >= 0) {
-        const { zh, en } = offName(tg);
-        text(targetB, zh); text(targetS, en);
+        const tnm = offName(tg);                     // a display string (crowd.js owns the names): never destructure it
+        text(targetB, tnm); text(targetS, '');
         const th = clamp01(c.hp[tg] / c.hpMax[tg]);
         set(targetI, 'transform', `scaleX(${th.toFixed(4)})`);
         set(targetE, 'transform', `scaleX(${Math.max(th, 1 - clamp01((f - S.tgtF) / 40) * (1 - th)).toFixed(4)})`);
@@ -384,14 +391,16 @@ export function createHud(root, game, camera) {
       let ba = S.boss;
       if (!ba || ba.state === 'gone' || (ba.dead && f - S.bossF > 150)) {
         ba = null;
-        for (const a of game.actors.list) if (game.actors.foe(a)) { ba = S.boss = a; S.bossLag = a.hp / a.hpMax; break; }
+        for (const a of game.actors.list) if (game.actors.foe(a)) { ba = S.boss = a; S.bossLag = a.hp / a.hpMax; S.bossPrev = S.bossLag; break; }
       }
       set(boss, 'opacity', ba && !inMusou ? (mt < 19 ? '0.3' : '1') : '0');
       if (ba) {
         text(bossB, ba.name); text(bossSeal, ba.seal); text(bossS, '');
         const k = clamp01(ba.hp / ba.hpMax);
-        if (f - S.bossF >= 20) S.bossLag = Math.max(k, S.bossLag - 0.006 * df);
+        if (k < S.bossPrev - 1e-4) S.bossLag = S.bossPrev;                     // fresh damage: chunk = pre-hit hp
+        else if (f - S.bossF >= 20) S.bossLag = Math.max(k, S.bossLag - 0.006 * df);
         if (S.bossLag < k) S.bossLag = k;
+        S.bossPrev = k;
         set(bossI, 'transform', `scaleX(${k.toFixed(4)})`); set(bossE, 'transform', `scaleX(${S.bossLag.toFixed(4)})`);
         set(bossP, 'transform', `scaleX(${clamp01(ba.poise / ba.poiseMax).toFixed(4)})`);
         const rage = !ba.dead && k < ACTOR.rage;
@@ -460,7 +469,10 @@ export function createHud(root, game, camera) {
         if (o.ax - o.tw / 2 < 50 * rem && o.by - o.th < 21 * rem) clash = true;   // natural spot on the intro card
         place(o); if (!inBar) tags.push(o);
         const hpF = clamp01(hp / hpMax);
-        o.lag = hpF > o.lag ? hpF : Math.max(hpF, o.lag - 0.006 * df);  // white damage chunk drains after the hit
+        if (hpF > o.prevHpF + 1e-4) o.lag = hpF;                               // healed
+        else if (hpF < o.prevHpF - 1e-4) o.lag = o.prevHpF;                    // fresh damage: chunk = pre-hit hp
+        else o.lag = Math.max(hpF, o.lag - 0.006 * df);                        // then drains
+        o.prevHpF = hpF;
         set(o.bar, 'transform', `scaleX(${hpF.toFixed(4)})`);
         set(o.lagEl, 'transform', `scaleX(${o.lag.toFixed(4)})`);
       });

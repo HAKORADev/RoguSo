@@ -7,7 +7,7 @@ import { read, write } from './storage.js';
 export const DEFAULTS = {
   difficulty: 'normal',
   sound: { sfx: 1.0, music: 0.8, out: 'spatial' },
-  display: { hz: 'auto', fps: 0, res: 'native', vsync: true, pacer: false },
+  display: { hz: 'auto', fps: 0, res: 'native', vsync: true, pacer: false, customCursor: true },
   graphics: {
     shadow: 'high', reflections: 'med', lod: 'high', aa: '4', ssaa: 'off',
     mbCam: 'off', mbObj: 'off', bloom: 'med', gi: 'med', ao: 'off',
@@ -18,6 +18,7 @@ export const DEFAULTS = {
 
 const sub = {};
 export const on = (key, fn) => (sub[key] || (sub[key] = [])).push(fn);
+export const off = (key, fn) => { const a = sub[key], k = a ? a.indexOf(fn) : -1; if (k >= 0) a.splice(k, 1); };
 const emit = (key, val) => (sub[key] || []).forEach((fn) => fn(val));
 
 let S = load();
@@ -78,6 +79,7 @@ export const SCHEMA = {
   'display.res': { kind: 'seg', label: 'Internal resolution', options: () => resOptions(), wide: true },
   'display.vsync': { kind: 'toggle', label: 'V-Sync', hint: 'Off renders as fast as the machine can' },
   'display.pacer': { kind: 'toggle', label: 'Frame pacer', hint: 'Eases the FPS target toward the most stable frame time' },
+  'display.customCursor': { kind: 'toggle', label: 'Custom cursor', hint: 'The voxel fire cursor steers with your hand; off uses the system arrow' },
   'graphics.shadow': {
     kind: 'seg', label: 'Shadow detail',
     options: [

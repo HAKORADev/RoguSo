@@ -202,12 +202,8 @@ export const CHARS = {
     name: 'Lü Bu', courtesy: 'Fengxian', seal: 'WINGED',
     title: 'The Flying General', motto: 'Among men, Lü Bu · Among horses, Red Hare · Peerless under heaven',
     weapon: 'Sky-Piercer Halberd',
-    bio: {
-      en: ['A rider of Jiuyuan on the northern frontier, peerless with bow and horse — they called him the Flying General.',
+    bio: ['A rider of Jiuyuan on the northern frontier, peerless with bow and horse — they called him the Flying General.',
       'Before Hulao Gate he held the pass alone with his halberd; it took Liu, Guan and Zhang together to hold him off.'],
-      en: ['A rider of Jiuyuan on the northern frontier, peerless with bow and horse — they called him the Flying General.',
-        'Before Hulao Gate he held the pass alone with his halberd; it took Liu, Guan and Zhang together to hold him off.'],
-    },
     stats: { atk: 5, def: 4, speed: 4, range: 4 }, musou: 'Peerless: Dance of Gods and Demons', accent: '#d8283c',
     lines: {
       intro: 'Lü Fengxian stands here! Which of you rats dies first?',

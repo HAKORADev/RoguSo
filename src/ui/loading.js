@@ -11,21 +11,23 @@ import { CHARS } from '../chars/index.js';
 import { replay } from './menu.js';
 import { difficulty } from '../core/difficulty.js';
 import { chapter } from '../story/chapters.js';
+import { bindings, labelSlot } from '../core/input.js';
 
 /** Band label for a flow ctx: the chapter (story), the trial, or the battlefield (free: the chapter ctx.ch's field). */
 export function modeLabel(c) {
   const { CH } = chapter(c.ch);
   return c.mode === 'free' ? `Free battle · ${CH.title}` : `${c.mode === 'story' ? 'Story' : 'Trial'} · ${CH.num} ${CH.title}`;
 }
-// [text, char id | undefined = any officer] — keep in step with the controls table (title.js CONTROLS)
+// tip builders — every key name comes from the user's LIVE bindings (settings may have remapped anything), so the
+// loading card never lies about the controls
 const TIPS = [
-  ['Tap J for the full combo; press K mid-combo for a charge attack.'],
-  ['When the gold gauge is full, press I to unleash your Musou.'],
-  ['L or Shift dodges; the roll slips through a blow.'],
-  ['R recenters the camera behind you, or onto the nearest officer.'],
-  ['Click the field to steer the camera with the mouse; Q / E turn it too.'],
-  ['Hold K / right click to draw and aim (standing or running); a full draw pierces a line.', 'huangzhong'],
-  ['Aim for an officer\'s head: a headshot hits far harder.', 'huangzhong'],
+  (k) => [`Tap ${k('attack')} for the full combo; press ${k('charge')} mid-combo for a charge attack.`],
+  (k) => [`When the gold gauge is full, press ${k('musou')} to unleash your Musou.`],
+  (k) => [`${k('dodge')} dodges; the roll slips through a blow.`],
+  (k) => [`${k('target')} recenters the camera behind you, or onto the nearest officer.`],
+  () => ['Click the field to steer the camera with the mouse; the mouse looks up and down too.'],
+  (k) => [`Hold ${k('charge')} / right click to draw and aim (standing or running); a full draw pierces a line.`, 'huangzhong'],
+  () => ["Aim for an officer's head: a headshot hits far harder.", 'huangzhong'],
 ];
 
 export function createLoading(el) {
@@ -54,7 +56,8 @@ export function createLoading(el) {
       $('.l-name h1').textContent = ch.name; $('.l-seal').textContent = ch.seal;
       $('.l-en').textContent = ch.title;
       $('.l-line b').textContent = ch.lines.intro; $('.l-line small').textContent = '';
-      const tips = TIPS.filter((q) => !q[1] || q[1] === ch.id), t = tips[Math.floor(Math.random() * tips.length)];   // UI only, not the sim
+      const k = (a) => bindings().actions[a].filter(Boolean).map((s) => labelSlot(s)).join(' / ');
+      const tips = TIPS.map((f) => f(k)).filter((q) => !q[1] || q[1] === ch.id), t = tips[Math.floor(Math.random() * tips.length)];   // UI only, not the sim
       $('.l-tip b').textContent = t[0]; $('.l-tip small').textContent = '';
       state('Marshalling the army');           // first stage label; deploy() then climbs summon → deploy → prepare
       this.progress(0.06);

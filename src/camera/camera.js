@@ -30,7 +30,7 @@ const CAM = {
   // hero ≈ 33 % of frame height (1.85 m with helmet), feet ≈ 73 %, horizon ≈ 16 %: the flanks within ±4 m show at
   // mid-frame (the old 40°/5.06 m/14.6° rig held him at 45 %, flanks off-screen, fast angular pans).
   dist: 5.8, height: 1.35, pitch: 17 * DEG, fov: 48, minDist: 3,   // minDist: closest the boom clearance pulls in (m)
-  tiltMin: -9 * DEG, tiltMax: 20 * DEG,     // player pitch offset range (+ = higher, looking down)
+  tiltMin: -58 * DEG, tiltMax: 62 * DEG,    // player pitch offset range (+ = higher, looking down): full vertical axis
   // follow: critically damped spring (ω, 1/s; no overshoot: a 4.6 m dodge trails ≤ 1.6 m and settles ≈0.4 s after), dead-zone radius (m)
   // the hero wanders in before the spring sees him (attack steps, pivots), look-ahead (s of intended velocity: ≈ the
   // spring + dead-zone lag at a run, so he runs ≈0.2 m ahead of the aim) smoothed at leadRate (1/s)

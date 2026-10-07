@@ -5,7 +5,7 @@
 // sliders and a reset-to-defaults. Bindings persist to controls.json through core/input.js (setSlot → write → the
 // 'bindings' event rebuilds the live maps). Back (Esc / the button) returns to the title. Display changes apply
 // live: the scheduler, post.js quality and the audio buses all subscribe to the settings bus.
-import { SCHEMA, values, set, measureHz, on } from '../core/settings.js';
+import { SCHEMA, values, set, measureHz, on, off } from '../core/settings.js';
 import { bindings, setSlot, unbindEverywhere, bindingsTemplate, labelSlot, psPad, ACTIONS, MOVE_KEYS } from '../core/input.js';
 import { emit } from '../core/events.js';
 import { sfx, inkWipe, afterWipe } from './menu.js';
@@ -34,6 +34,9 @@ export function createSettings(el, flow) {
   const $ = (s) => el.querySelector(s);
   const body = $('.st-body');
   let pane = 'sound', armed = false, capture = null, pending = null, padPoll = 0, paneEls = {};
+  let subs = [];                                    // this pane's settings-bus subscriptions (dropped on rebuild)
+  const watch = (key, fn) => { subs.push([key, fn]); on(key, fn); };
+  const unwatch = () => { for (const [k, f] of subs) off(k, f); subs = []; };
 
   const capEl = $('.st-capture'), modal = $('.st-modal');
 
@@ -55,7 +58,7 @@ export function createSettings(el, flow) {
     track.addEventListener('pointerdown', (e) => { drag = true; track.setPointerCapture(e.pointerId); fromEvent(e); sfx('move'); });
     track.addEventListener('pointermove', (e) => drag && fromEvent(e));
     track.addEventListener('pointerup', () => { drag = false; });
-    on(path, paint);
+    watch(path, paint);
     return r;
   }
   function rowSeg(path, def) {
@@ -79,7 +82,7 @@ export function createSettings(el, flow) {
     r.querySelector('.st-prev').addEventListener('click', () => go(-1));
     r.querySelector('.st-next').addEventListener('click', () => go(1));
     val.addEventListener('click', () => go(1));
-    if (typeof def.options === 'function') on('display.*', () => { const o = def.options(); cur = Math.max(0, o.findIndex((q) => String(q.v) === String(get(path)))); });
+    if (typeof def.options === 'function') watch('display.*', () => { const o = def.options(); cur = Math.max(0, o.findIndex((q) => String(q.v) === String(get(path)))); });
     paint();
     return r;
   }
@@ -91,7 +94,7 @@ export function createSettings(el, flow) {
     const paint = (v) => { b.textContent = v ? 'On' : 'Off'; r.querySelector('.st-tgl').classList.toggle('on', !!v); };
     paint(get(path));
     r.querySelector('.st-tgl').addEventListener('click', () => { set(path, !get(path)); paint(get(path)); sfx('ok'); });
-    on(path, paint);
+    watch(path, paint);
     return r;
   }
 
@@ -150,7 +153,7 @@ export function createSettings(el, flow) {
         startCapture(group, key, i);
       }));
       paint();
-      on('bindings', paint);
+      watch('bindings', paint);
       row.dataset.key = key;
       return row;
     };
@@ -188,7 +191,7 @@ export function createSettings(el, flow) {
       write('controls.json', bindingsTemplate());
       location.reload();
     });
-    on('bindings', () => map.dispatchEvent(new Event('repaint')));
+    watch('bindings', () => map.dispatchEvent(new Event('repaint')));
     map.addEventListener('repaint', () => map.querySelectorAll('.st-row').forEach(() => {}));
     return w;
   }
@@ -275,6 +278,7 @@ export function createSettings(el, flow) {
   // ---- tabs
   function showPane(p) {
     pane = p;
+    unwatch();                                     // dead panes must not keep repainting removed widgets
     for (const el of Object.values(paneEls)) el.remove();
     paneEls = {};
     paneEls[p] = buildPane(p);
@@ -288,8 +292,13 @@ export function createSettings(el, flow) {
   });
 
   return {
-    enter() { armed = false; capture = null; pending = null; showPane(pane); replayIn(); },
-    exit() { if (capture) endCapture(); modal.hidden = true; },
+    enter() {
+      armed = false; capture = null; pending = null;
+      modal.hidden = true; capEl.hidden = true;    // no stale dialog survives into a visit
+      showPane('sound');                           // every visit opens on the first tab
+      replayIn();
+    },
+    exit() { unwatch(); if (capture) endCapture(); modal.hidden = true; },
   };
   function replayIn() { el.classList.remove('in'); void el.offsetWidth; el.classList.add('in'); }
 }

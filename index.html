@@ -152,7 +152,8 @@
   #hud .h-band.big small { font-size: 1.4rem; letter-spacing: .4em; }
 
   /* musou: concept's vertical copy on the right */
-  #hud .h-copy { right: 3.2%; top: 44%; writing-mode: vertical-rl; font: 700 3.4rem/1.3 var(--brush); letter-spacing: .5rem; opacity: 0;
+  /* musou: the character's copy on the right while the Musou runs — normal horizontal reading, right-aligned */
+  #hud .h-copy { right: 3.2%; top: 40%; max-width: 34rem; text-align: right; font: 700 3.4rem/1.3 var(--brush); letter-spacing: .3rem; opacity: 0;
     color: #f7f1e8; text-shadow: 0 0 .1rem #000, .2rem .3rem 0 rgba(0,0,0,.55), 0 0 1.4rem rgba(120,200,255,.5);
     border-top: .15rem solid rgba(247,241,232,.7); border-bottom: .15rem solid rgba(247,241,232,.7); padding: 1rem 0; }
 
@@ -411,7 +412,7 @@
   /* officer name tags, projected beside each head (title.js): red seal + vertical brush name + romanisation */
   .t-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: .5rem;
     pointer-events: none; will-change: transform; transition: opacity .5s; }
-  .t-tag b { writing-mode: vertical-rl; font: 700 4.6rem/1 var(--brush); letter-spacing: .4rem; color: #fff4dc;
+  .t-tag b { writing-mode: horizontal-tb; font: 700 3.4rem/1 var(--brush); letter-spacing: .4rem; color: #fff4dc; white-space: nowrap;
     text-shadow: 0 0 .9rem rgba(0,0,0,.9), .15rem .25rem 0 rgba(0,0,0,.8); }
   .t-tag i { --sz: 1.6rem; --lh: 1.02; --pad: .35rem .25rem; --rad: .25rem; --r1: .14rem; --r2: .24rem; --ra: .8; --drop: 0 .2rem .5rem rgba(0,0,0,.6); }
   .t-tag small { font: 700 max(12px, 1.2rem)/1.25 var(--sans); letter-spacing: .18em; color: #f0e2c2; text-shadow: 0 .1rem .3rem #000;
@@ -617,7 +618,7 @@
     text-shadow: .3rem .4rem 0 rgba(0,0,0,.55), 0 0 2.4rem color-mix(in srgb, var(--acc) 45%, transparent); }
   .s-name div { display: flex; gap: .7rem; padding-top: 1.2rem; }
   .s-seal { --sz: 2rem; --pad: .4rem .3rem; --r1: .16rem; --r2: .28rem; }
-  .s-court { margin: 0; writing-mode: vertical-rl; font: 700 2.2rem/1 var(--kai); letter-spacing: .3rem; color: #e9d8b6; }
+  .s-court { margin: 0; font: 700 2.2rem/1.4 var(--kai); letter-spacing: .3rem; color: #e9d8b6; align-self: center; }
   .s-en { margin: .2rem 0 0 .4rem; font: 600 max(13px, 1.5rem)/1 var(--sans); letter-spacing: .3em; color: var(--dim); }
   .s-epi { margin: 1.4rem 0 0; }
   .s-epi b { font: 700 2.5rem/1 var(--kai); letter-spacing: .3rem; color: #f2c14e; }
@@ -644,13 +645,13 @@
   .s-musou small { display: block; margin-top: .6rem; font: 600 max(13px, 1.4rem)/1.3 var(--sans); letter-spacing: .12em; color: var(--dim); overflow-wrap: anywhere; }
   .s-musou .swash { left: 0; bottom: .2rem; width: 32rem; height: 1.6rem; z-index: -1; opacity: .35; clip-path: none; }
 
-  /* intro line: vertical calligraphy right of the officer (the HUD's Musou copy style), brush-revealed top → down */
-  .s-line { position: absolute; right: 5rem; top: 10rem; display: flex; flex-direction: row-reverse; gap: 1rem; color: #f9f3e8;
-    padding: 0 1.2rem; background: rgba(10,6,4,.62); box-shadow: 0 0 2.4rem 1.2rem rgba(10,6,4,.62); border-radius: .6rem; }
-  .s-line p { margin: 0; writing-mode: vertical-rl; font: 700 3.3rem/1.2 var(--brush); letter-spacing: .5rem; padding: 1.2rem 0; max-height: 44rem;
-    border-top: .15rem solid rgba(247,241,232,.7); border-bottom: .15rem solid rgba(247,241,232,.7);
+  /* intro line: a horizontal quote block right of the officer (same area the vertical column held), brush-revealed */
+  .s-line { position: absolute; right: 5rem; top: 10rem; max-width: 46rem; display: flex; flex-direction: column; gap: .6rem; color: #f9f3e8;
+    padding: 1.2rem 1.4rem; background: rgba(10,6,4,.62); box-shadow: 0 0 2.4rem 1.2rem rgba(10,6,4,.62); border-radius: .6rem; }
+  .s-line p { margin: 0; font: 700 3.3rem/1.25 var(--brush); letter-spacing: .2rem; border-left: .15rem solid rgba(247,241,232,.7);
+    padding-left: 1.2rem;
     text-shadow: .2rem .3rem 0 rgba(0,0,0,.55), 0 0 1.4rem color-mix(in srgb, var(--acc) 60%, transparent); }
-  .s-line small { writing-mode: vertical-rl; font: 600 max(13px, 1.4rem)/1.3 var(--sans); letter-spacing: .06em; color: #efe3cc; max-height: 42rem; padding-top: 1.4rem; }
+  .s-line small { font: 600 max(13px, 1.4rem)/1.3 var(--sans); letter-spacing: .06em; color: #efe3cc; padding-left: 1.4rem; }
 
   /* between the header and info column, clear of the officer: his record here or his unlock rule */
   .s-rec { position: absolute; left: 39rem; top: 9.8rem; max-width: 42rem; box-sizing: border-box; margin: 0; padding: .7rem 1.2rem;
@@ -795,14 +796,14 @@
   #prologue .pl-arw .hd { opacity: 0; }
   #prologue .pl-arw.on > path { stroke-dashoffset: 0; transition: stroke-dashoffset 1.7s cubic-bezier(.5,0,.3,1) .5s; }
   #prologue .pl-arw.on .hd { opacity: 1; transition: opacity .25s 2s; }
-  #prologue .pl-card { position: absolute; right: 7vw; top: 6vh; bottom: 19vh; opacity: 0; transition: opacity .35s; }
+  #prologue .pl-card { position: absolute; left: 36vw; right: 7vw; top: 6vh; bottom: 19vh; opacity: 0; transition: opacity .35s; }
   #prologue .pl-card.on { opacity: 1; }
   /* the inscription panel: paper washed pale behind the columns, so the map never fights the calligraphy */
   #prologue .pl-card::before { content: ""; position: absolute; top: -10vh; bottom: -30vh; left: -9rem; right: -8vw; z-index: -1;
     background: linear-gradient(90deg, rgba(226,206,166,0), rgba(226,206,166,.86) 8rem); }
-  #prologue .pl-cols { writing-mode: vertical-rl; height: 100%; font: 700 5rem/1.3 var(--brush); letter-spacing: .6rem; color: var(--ink);
+  #prologue .pl-cols { height: 100%; font: 700 3.6rem/1.5 var(--brush); letter-spacing: .35rem; color: var(--ink);
     text-shadow: .1rem .15rem .2rem rgba(60,30,10,.25); }
-  #prologue .pl-cols span { display: block; margin-left: 1.2rem;
+  #prologue .pl-cols span { display: block; margin-bottom: 1.4rem;
     -webkit-mask: var(--brushmask) 0 100% / 100% 300% no-repeat; mask: var(--brushmask) 0 100% / 100% 300% no-repeat; }
   #prologue .pl-cols span:first-child { color: #6e1a12; }
   #prologue .pl-card.on .pl-cols span { -webkit-mask-position: 0 0; mask-position: 0 0;
