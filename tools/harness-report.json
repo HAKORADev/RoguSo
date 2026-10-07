@@ -1,15 +1,7 @@
 [
   {
     "kind": "harness",
-    "msg": "click .t-dif button[data-d=\"1\"]: locator.click: Element is not visible"
-  },
-  {
-    "kind": "harness",
-    "msg": "click .t-chs button[data-c=\"0\"]: locator.click: Timeout 6000ms exceeded."
-  },
-  {
-    "kind": "harness",
-    "msg": "chapter pick never reached select"
+    "msg": "march never reached select"
   },
   {
     "kind": "harness",
@@ -18,29 +10,5 @@
   {
     "kind": "harness",
     "msg": "never reached battle (the infinite-load class)"
-  },
-  {
-    "kind": "harness",
-    "msg": "click .t-main button[data-i=\"3\"]: locator.click: Element is not visible"
-  },
-  {
-    "kind": "harness",
-    "msg": "settings never opened"
-  },
-  {
-    "kind": "harness",
-    "msg": "settings Esc never returned to title"
-  },
-  {
-    "kind": "pageerror",
-    "msg": "text is not a function\n    at say (http://127.0.0.1:38189/src/ui/hud.js:164:5)\n    at Array.<anonymous> (http://127.0.0.1:38189/src/ui/hud.js:171:26)\n    at emit (http://127.0.0.1:38189/src/core/events.js:85:49)"
-  },
-  {
-    "kind": "harness",
-    "msg": "roster-free-boots: keyboard.press: Target page, context or browser has been closed"
-  },
-  {
-    "kind": "harness",
-    "msg": "story-prologue-path: browser.newPage: Target page, context or browser has been closed"
   }
 ]

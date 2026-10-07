@@ -10,7 +10,7 @@
 //   Arena     the wallets (coins + bodycoins) and the Bio-Lab: clothes off part by part (free), the body mods and
 //             their ZXCVB battle abilities upgraded with bodycoins (economy.js + rogue/body.js own the effects).
 import { CHARS, CHAR_ORDER, paintPortrait } from '../chars/index.js';
-import { inkWipe, afterWipe, sfx, replay } from './menu.js';
+import { inkWipe, afterWipe, wiping, sfx, replay } from './menu.js';
 import { DIFFS, unlocked, difficulty, setDifficulty } from '../core/difficulty.js';
 import {
   economy, coins, bodyCoins, owned, isOwned, charPrice, buyChar,
@@ -127,7 +127,7 @@ export function createBattle(el, flow) {
   paintPick();
   navKeys(el, { exit: exitHooks });
   return {
-    enter() { $('.rg-wallet')?.replaceWith(Object.assign(document.createElement('template'), { innerHTML: wallet().trim() }).content.firstChild); replay(el, 'in'); exitHooks.forEach((f) => f()); },
+    enter() { $('.rg-wallet')?.replaceWith(Object.assign(document.createElement('template'), { innerHTML: wallet().trim() }).content.firstChild); replay(el, 'in'); },
     exit() { exitHooks.forEach((f) => f()); },
   };
 }

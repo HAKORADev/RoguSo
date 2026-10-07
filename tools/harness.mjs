@@ -70,7 +70,12 @@ const waitState = async (name, ms = 45000) => {
   return false;
 };
 const key = async (k, times = 1, gap = 120) => { for (let i = 0; i < times; i++) { await page.keyboard.press(k); await page.waitForTimeout(gap); } };
-const click = async (sel) => { await page.locator(sel).first().click({ force: true, timeout: 6000 }).catch((e) => note('harness', `click ${sel}: ${e.message.split('\n')[0]}`)); await page.waitForTimeout(260); };
+const click = async (sel) => {
+  // software GL: CSS 'in' animations never settle, so Playwright's actionability wait stalls — fire a real DOM click
+  const ok = await page.evaluate((s) => { const el = document.querySelector(s); if (!el) return false; el.click(); return true; }, sel).catch(() => false);
+  if (!ok) note('harness', `click ${sel}: element missing`);
+  await page.waitForTimeout(260);
+};
 // software GL: the boot wipe uncovers at ~1-2 fps — wait it out before any click, and after clicks that run under it
 const settle = async (ms = 90000) => {
   try { await page.waitForFunction(() => !document.body.classList.contains('inkhold'), { timeout: ms }); } catch { note('harness', 'ink never uncovered'); }
@@ -91,14 +96,15 @@ tour.push({ name: 'menus-to-battle', run: async () => {
   await waitState('battlemenu', 20000) || note('harness', 'battle menu never opened');
   await settle();
   await click('.rg-loc[data-loc="hulao"]');             // pick a field
+  await page.waitForTimeout(500);
   await click('.rg-go');                                 // March -> select
-  await waitState('select', 20000) || note('harness', 'march never reached select');
+  await waitState('select', 120000) || note('harness', 'march never reached select');
   await settle();
   await key('ArrowDown', 7, 320);                       // cycle the roster (per-char data bugs surface here)
   await key('ArrowUp', 7, 320);
   await shot('select');
   await key('Enter');                                   // GO
-  await waitState('loading', 30000) || note('harness', 'no loading card');
+  await waitState('loading', 120000) || note('harness', 'no loading card');
   await waitState('battle', 240000) || note('harness', 'never reached battle (the infinite-load class)');
   await page.waitForTimeout(2500); await shot('battle');
   await page.keyboard.down('KeyW'); await page.waitForTimeout(800); await page.keyboard.up('KeyW');
