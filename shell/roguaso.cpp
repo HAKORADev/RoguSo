@@ -1,4 +1,4 @@
-// RoguSo v0.6.0 - the Windows shell: one small exe that opens the game in an internal WebView2 (Edge) tab.
+// RoguSo - the Windows shell: one small exe that opens the game in an internal WebView2 (Edge) tab.
 // The whole web build lives inside the exe and is served straight from memory (WebResourceRequested -> memory
 // streams): no unpacking, no app folder on disk, no bundled browser, no Electron. Documents/RoguSo carries only the
 // data the game needs (save.json, settings.json, controls.json) through a JSON message bridge; the WebView2 runtime
@@ -14,8 +14,7 @@
 #include <cstdio>
 #include <string>
 #include "embed.h"
-
-#define ROGUSO_VERSION "0.6.0"
+#include "version.h"
 
 static const wchar_t WINDOW_CLASS[] = L"RoguSoWindow";
 static const wchar_t ORIGIN[] = L"https://app.roguaso/";
@@ -326,6 +325,7 @@ public:
         web->add_WebResourceRequested(&resHandler, nullptr);
         static MessageHandler msgHandler;
         web->add_WebMessageReceived(&msgHandler, nullptr);
+        web->AddScriptToExecuteOnDocumentCreated((L"window.ROGUSO_VERSION='" ROGUSO_VERSION L"';"), nullptr);
         const std::wstring url = std::wstring(ORIGIN) + L"index.html";
         web->Navigate(url.c_str());
         RECT rc;
@@ -437,7 +437,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int nCmdShow) {
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
     const int x = work.left + (work.right - work.left - w) / 2;
     const int y = work.top + (work.bottom - work.top - h) / 2;
-    HWND hwnd = CreateWindowExW(0, WINDOW_CLASS, L"RoguSo",
+    HWND hwnd = CreateWindowExW(0, WINDOW_CLASS, L"RoguSo " ROGUSO_VERSION_W,
         WS_OVERLAPPEDWINDOW, x, y, w, h, nullptr, nullptr, hInst, nullptr);
     ControllerHandler::g_hwnd = hwnd;
     ShowWindow(hwnd, nCmdShow);

@@ -3,15 +3,35 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: version stamp (also the changelog version)
+        description: version stamp (empty = read from CHANGELOG.md)
         required: false
-        default: '0.7.0'
+        default: ''
+permissions:
+  contents: read
+  actions: write
 jobs:
   windows:
     name: build the RoguSo exe (web build embedded)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: resolve the version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = '${{ github.event.inputs.version }}'
+          if (-not $v) {
+            foreach ($line in Get-Content CHANGELOG.md) {
+              if ($line -match '^## ' -and $line -match '([0-9]+\.[0-9]+\.[0-9]+)') {
+                $v = $Matches[1]
+                break
+              }
+            }
+          }
+          if (-not $v) { $v = '0.0.0' }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "building version $v"
 
       - name: set up MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -29,7 +49,7 @@ jobs:
 
       - name: embed the web build into the shell
         shell: pwsh
-        run: python tools/embed.py "${{ github.event.inputs.version }}"
+        run: python tools/embed.py "${{ steps.ver.outputs.version }}"
 
       - name: compile
         shell: cmd
@@ -47,20 +67,20 @@ jobs:
       - name: package
         shell: pwsh
         run: |
-          Compress-Archive -Path build/RoguSo.exe -DestinationPath build/RoguSo-windows-x64.zip
-          Get-Item build/RoguSo.exe, build/RoguSo-windows-x64.zip | Select-Object Name, Length
+          Compress-Archive -Path build/RoguSo.exe -DestinationPath "build/RoguSo-${{ steps.ver.outputs.version }}-windows-x64.zip"
+          Get-Item build/RoguSo.exe, "build/RoguSo-${{ steps.ver.outputs.version }}-windows-x64.zip" | Select-Object Name, Length
 
       - name: upload the exe
         uses: actions/upload-artifact@v4
         with:
-          name: RoguSo-windows-x64
+          name: RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-windows-x64
           path: build/RoguSo.exe
 
       - name: upload the zip
         uses: actions/upload-artifact@v4
         with:
-          name: RoguSo-windows-x64-zip
-          path: build/RoguSo-windows-x64.zip
+          name: RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-windows-x64-zip
+          path: "build/RoguSo-${{ steps.ver.outputs.version }}-windows-x64.zip"
 
   web:
     name: package the plain browser build
@@ -68,14 +88,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: resolve the version
+        id: ver
+        run: |
+          v='${{ github.event.inputs.version }}'
+          if [ -z "$v" ]; then
+            v=$(grep -m1 '^## ' CHANGELOG.md | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+          fi
+          if [ -z "$v" ]; then v='0.0.0'; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "building version $v"
+
       - name: pack the web build
         run: |
           mkdir -p build/roguaso-web
           cp -r index.html sword.png src vendor build/roguaso-web/
-          cd build && zip -qr RoguSo-web.zip roguaso-web && cd ..
+          cd build && zip -qr "RoguSo-${{ steps.ver.outputs.version }}-web.zip" roguaso-web && cd ..
 
       - name: upload the web build
         uses: actions/upload-artifact@v4
         with:
-          name: RoguSo-web
-          path: build/RoguSo-web.zip
+          name: RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-web
+          path: "build/RoguSo-${{ steps.ver.outputs.version }}-web.zip"
+
+  clean:
+    name: delete the superseded artifacts
+    needs: [windows, web]
+    runs-on: ubuntu-latest
+    steps:
+      - name: keep only the artifacts of this run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run='${{ github.run_id }}'
+          repo='${{ github.repository }}'
+          gh api "repos/$repo/actions/artifacts?per_page=100" --paginate --jq ".artifacts[] | select(.workflow_run.id != $run) | .id" | while read -r id; do
+            gh api -X DELETE "repos/$repo/actions/artifacts/$id" && echo "deleted superseded artifact $id"
+          done
