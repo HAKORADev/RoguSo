@@ -87,14 +87,12 @@ tour.push({ name: 'menus-to-battle', run: async () => {
   await waitState('title', 20000) || note('harness', 'never reached title');
   await settle();
   await page.mouse.click(200, 600); await page.waitForTimeout(400);   // wake (press any key)
-  await click('.t-main button[data-i="0"]');            // Story -> chapter panel
-  await page.waitForFunction(() => !!document.querySelector('.t-chs button'), { timeout: 20000 }).catch(() => note('harness', 'chapter panel never built'));
-  await settle(); await shot('title-chapters');
-  await click('.t-chs button[data-c="0"]');             // first chapter -> difficulty panel
-  await page.waitForFunction(() => !!document.querySelector('.t-dif button') && document.getElementById('title').classList.contains('dif'), { timeout: 20000 }).catch(() => note('harness', 'difficulty panel never showed'));
-  await settle(); await shot('title-difficulty');
-  await click('.t-dif button[data-d="1"]');             // pick a tier -> select
-  await waitState('select', 20000) || note('harness', 'chapter pick never reached select');
+  await click('.t-main button[data-i="0"]');            // Battle -> the battlemenu screen
+  await waitState('battlemenu', 20000) || note('harness', 'battle menu never opened');
+  await settle();
+  await click('.rg-loc[data-loc="hulao"]');             // pick a field
+  await click('.rg-go');                                 // March -> select
+  await waitState('select', 20000) || note('harness', 'march never reached select');
   await settle();
   await key('ArrowDown', 7, 320);                       // cycle the roster (per-char data bugs surface here)
   await key('ArrowUp', 7, 320);
@@ -121,14 +119,14 @@ tour.push({ name: 'pause-resume-quit', run: async () => {
   await key('Escape'); await page.waitForTimeout(450);
   await key('ArrowDown'); await key('Enter');           // quit -> arm
   await key('Enter'); await page.waitForTimeout(2500);  // confirm
-  await waitState('title', 15000) || note('harness', 'pause-quit never reached title');
+  await waitState('title', 20000) || note('harness', 'pause-quit never reached title');
   await shot('title-again');
 }});
 
 tour.push({ name: 'settings-tour', run: async () => {
   await settle();
   await page.mouse.click(200, 600); await page.waitForTimeout(400);   // wake
-  await click('.t-main button[data-i="3"]');            // Settings
+  await click('.t-main button[data-i="5"]');            // Settings
   await waitState('settings', 30000) || note('harness', 'settings never opened');
   await settle(); await shot('settings');
   for (let t = 0; t < 5; t++) {                         // sweep every tab, wiggle every control class
@@ -142,13 +140,22 @@ tour.push({ name: 'settings-tour', run: async () => {
   await waitState('title', 8000) || note('harness', 'settings Esc never returned to title');
 }});
 
-tour.push({ name: 'trial-boot', run: async () => {
-  await newLeg('/?go=trial');
-  await waitState('battle', 90000) || note('harness', 'trial never reached battle');
+tour.push({ name: 'rogue-boot', run: async () => {
+  await newLeg('/?go=rogue&loc=hulao&enemies=40');
+  await waitState('battle', 240000) || note('harness', 'rogue never reached battle');
   await page.waitForTimeout(2500);
   await key('KeyJ', 10, 140);
+  await key('KeyZ', 1, 200); await key('KeyX', 1, 200);   // the bio row (defaults: nothing grown — must be a no-op)
+  await page.waitForTimeout(1200);
+  await shot('rogue-fight');
+}});
+
+tour.push({ name: 'train-boot', run: async () => {
+  await newLeg('/?go=trainchar&loc=dingjun&enemies=0');
+  await waitState('battle', 240000) || note('harness', 'train never reached battle');
   await page.waitForTimeout(1500);
-  await shot('trial-fight');
+  await key('KeyJ', 6, 140);
+  await shot('train-fight');
 }});
 
 tour.push({ name: 'roster-free-boots', run: async () => {
