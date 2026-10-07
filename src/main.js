@@ -366,9 +366,6 @@ on('rogue:end', (e) => {
   economy.addLifetime(id, { kills: s.kos | 0, coins: s.coins | 0, runs: 1, xp: s.xp | 0, bestKos: s.kos | 0 });
   afterWipe(() => inkWipe(() => flow.go('result', { ...ctx, char: id, win: e.win, stats: s, reason: e.reason, diff: game.diff, rec: null })));
 });
-// the roguelike's ally order (Train → the allies): O sends them forward / calls them back to guard. The Bio-Lab's
-// battle row lives on ZXCVB (kept clear of every other binding): a tap fires the part's ability, holding X plants a
-// mine instead of the fart ring.
 addEventListener('keydown', (e) => {
   if (state !== 'battle' || paused || e.repeat || e.defaultPrevented) return;
   if (e.code === 'KeyO' && game.mode === 'trainally') { game.rogue.orderAllies(); return; }

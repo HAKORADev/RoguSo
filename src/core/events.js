@@ -26,7 +26,7 @@
 //                                                                       kind 'circle' | 'lane' | 'leap', x,z = its origin
 //  actor:down    actors   {key, x,z}                                    a foe actor falls (0 HP)
 //  actor:retreat actors   {key, x,z, beaten}                            an actor runs off the field (beaten: broke off at retreatAt)
-//  pickup        pickups  {x,z, heal}                                   the hero eats a meat bun (src/actors/pickups.js)
+//  pickup:coin  pickups  {x,z, n}                                     a coin is collected on foot (src/actors/pickups.js)
 //  dodge         loco     {x,y,z, dx,dz}
 //  jump          loco     {x,y,z}          land {x,y,z, hard}
 //  footstep      loco     {x,y,z, foot, speed, kick?}                   a foot plants in the run (≥2.5 m/s) / out of a dodge roll

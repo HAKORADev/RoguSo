@@ -4,7 +4,7 @@
 //  victims add a body-cluster layer and packed crunch grains) with a post-hitstop "blow-away" release on heavy hits ·
 //  enemy grunts, death cries, body falls · dodge / jump / land / hurt · Musou gauge chime, activation flash + shout,
 //  close-up hush + charge drone swelling into the contact blast, stab flurry, pre-burst inhale, finishing blast + death
-//  chorus · reinforcement horn + army roar · foreground army shouts · boss blows (a low thud), poise breaks, meat bun chime ·
+//  chorus · reinforcement horn + army roar · foreground army shouts · boss blows (a low thud), poise breaks, coin chime ·
 //  looping distant-battle bed, war drums and a power-chord battle riff that swell with combat
 //  intensity and duck under hits and the Musou.
 // Mix: sfx / voice / bed buses + convolution reverb send → master EQ (matched to the benchmark clips' octave balance) →
@@ -310,7 +310,7 @@ export function createAudio(game) {
   });
 
   // ---- actors lane: a boss blow lands (a heavy, low thud under the blast, placed; the bed ducks), a poise break (armour
-  // crash), a meat bun eaten (the gauge chime, pitched up)
+  // crash), a coin picked up (the gauge chime, pitched up)
   on('actor:strike', (e) => {
     if (!ok()) return;
     const { pan, att } = place(e.x, e.z);

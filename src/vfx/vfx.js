@@ -19,7 +19,7 @@
 //  - Per kit (fx r1): heavy / charge / musou layers take kit.fx (ZY_FX ice by default; Huang Zhong amber-fire), and the
 //    ribbon takes kit.trail: a spear line, or a bow limb along the weapon frame's y restricted to the slash moves, with
 //    the kit's colours and speed gate; bow slashes add a razor air cut / spin ground ring.
-//  - Hero-model actors (src/actors): boss blows (actor:strike, by hitbox shape), poise breaks, meat bun pickups.
+//  - Hero-model actors (src/actors): boss blows (actor:strike, by hitbox shape), poise breaks.
 //    the kit's colours and speed gate; bow slashes add a razor air cut / spin ground ring. kit.fx.musou = 'dragon' (Zhao
 //    Yun: his teal Musou layers, C5 shaft fan, C3 dark smoke arc) | 'own' (the kit's Musou view draws its own; kit.fx.mu
 //    = {crack, wall, light} colours the shared Musou ground layers). Windows flagged beam / proj / roar are drawn by the
@@ -1118,8 +1118,8 @@ export function createVfx(scene, game, world) {
   });
 
   // actors lane: hero-model actors (src/actors) — a boss blow lands (shaped by its hitbox: leap = quake + rocks + crack,
-  // sweep = ring + dust skirt, thrust = dust bursts down the lane under a hot streak), a poise break (star + ring), a meat bun
-  // eaten (jade ring, star, motes). Struck actors get the normal contact burst through `hit`.
+  // sweep = ring + dust skirt, thrust = dust bursts down the lane under a hot streak), a poise break (star + ring).
+  // Struck actors get the normal contact burst through `hit`.
   const BOSS_RING = [2.2, 0.55, 0.28];
   // the roguelike's own effects: skeleton rises, ninja fog-in
   on('rogue:rise', (e) => { dustPuff(e.x, e.z, 10, 1.6, 0.4, 0.4, 0.6); ring(e.x, e.z, 1.4, 0.4, [0.75, 0.7, 0.5]); lightFlash(e.x, 0.6, e.z, [0.5, 0.55, 0.35], 14, 0.25); });
