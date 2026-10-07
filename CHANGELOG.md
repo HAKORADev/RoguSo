@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.7.0 - the roguelike
+
+The redesign. No story, no trials on the menu — the game is a loop now: **Battle, Fighters, Train**,
+with **Records** (per-character status) and **Arena** (the wallets + the Bio-Lab) beside them.
+
+- **The test-report batch first**: `text is not a function` (hud.js say() shadowed its own helper —
+  every dialogue threw), `fmt is not a function` (result tallies destructured wrong — every result
+  froze at 0), `c.bio.map is not a function` (Lü Bu's bio was a broken object). The result screen never
+  coming up for some wins: `story:end` called `inkWipe` directly and `inkWipe` drops calls made while
+  another wipe is in flight — every transition now chains through `afterWipe`, pause-quit included.
+- **HP lag law**: the white damage chunk starts at the hp the hit found — 40 → 30 animates 40 → 30, not
+  100 → 30. Player bar, officer tags and the boss bar all hold prevHp now.
+- **The officer target bar** showed `undefined` (it destructured `{zh,en}` from a plain string name).
+  The HUD intro card and the loading tips print the user's LIVE bindings — no hardcoded keys anywhere.
+- **Settings** always opens on Sound now (it used to reopen on Controls with stale dialogs); dead panes
+  stop repainting removed widgets; new Graphics toggles: **Visual effects** master switch, **Cinematic
+  lens** (the blue-red fringe + grain + vignette), **God rays**, **Atmospheric fog**.
+- **The cursor** is a runtime-drawn 3D voxel arrowhead that steers into its motion, carries a lagging
+  shadow, grays out while held, pivots on its tip, and bans the system cursor absolutely (hover states,
+  scrollbars — everything). Display → Custom cursor turns it off.
+- **MMB = Musou** (LMB light, RMB heavy, MMB was empty). Existing controls.json files migrate safely.
+- **Camera**: full vertical axis (pitch −58°..+62°), stronger mouse pitch.
+- **Text**: fitText has no floor anymore — text shrinks programmatically until it truly fits its box.
+  The vertical calligraphy reads horizontally now (prologue columns, the select quote, the title name
+  tags, the musou copy); the 2-glyph red seals stay seals. LOCK reads "Locked".
+- **Crash law**: the sim and the render are fault-guarded — a throwing module skips its frame, logs and
+  toasts on screen instead of silently freezing the field while the menus stay alive.
+- **The harness** (`tools/harness.mjs`): the game drives itself headless (real browser, real input
+  events) and collects every page error — the sandbox tests the build so the owner does not have to.
+
+The roguelike itself, field by field:
+
+- **Battle**: Hulao (the dead rise, fire bosses), Changban (the host drops from the sky, wind bosses),
+  Red Cliffs (ninja fog, water bosses), Dingjun (stone bosses). Reinforcements thicken every cycle; the
+  boss comes back bigger each time (up to 2.6× body) with a telegraphed elemental spell. **Challenge**:
+  a random field, 1–5 non-conflicting targets (slay / loot / musou / endure / fell a giant), a fatter purse.
+- **Fighters**: prices per officer (Zhao Yun free), the upgrade table (power / speed / muso / luck /
+  health / defense / allies / combos for coins; crit / guard / counter for XP; ally count / power /
+  vigor for ally XP). Upgrades bite for real: HP pool, damage, damage taken, run speed, musou gain.
+- **Train**: officer (a deadly elimination vs three rivals, XP banks even in defeat) and allies (wave
+  war beside your men, `O` sends them forward / calls them back, their kills bank ally XP).
+- **Economy** (`rogu.json`): coins are rare (one drop per ~20 kills, luck raises the odds), a boss
+  bursts with a purse, nothing is lost on death — the result screen shows the take and banks it.
+  Dynamic difficulty: the field scales with your total upgrade level.
+- **The Bio-Lab**: clothes off part by part, free, always (parts under cloth have no effect); body mods
+  for bodycoins — penis XOR eunuchs, breasts, butt, vagina, each with its own upgrades. The ZXCVB battle
+  row: milk (their wind-ups drag), the fart ring / a held mine, the life-stealing strike, the burning
+  splash, the freeze squirt. Voxel-styled, +16, no scenes.
+
 ## v0.6.0 - the settings, the cursor, the night
 
 The owner's test-report round: the infinite load killed for good, the data folder rebuilt the right way

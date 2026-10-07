@@ -1,69 +1,61 @@
 # RoguSo
 
-A rogue-like, musou-style battlefield brawler. One thousand soldiers on screen, your officer in the
-middle of it, and a campaign that gets meaner the deeper you go. Built as a browser game and packaged
-for Windows in one small `.exe` — double-click it and play, like the old bundled flash games.
+A roguelike musou battlefield brawler. Pick a field, fight endless waves, kill the boss when he comes
+back bigger, bank coins and XP, upgrade your officer, repeat. Runs in any WebGL2 browser and as one
+small Windows `.exe` (double-click and play).
 
-This repo is a standalone work on top of [mike007jd/voxel-musou](https://github.com/mike007jd/voxel-musou)
-(the voxel Three Kingdoms musou by mike007). The game below is rebuilt from that study: English-only,
-restructured, rebadged, and carried by a native Windows shell instead of a hosted website.
-
-## What is inside
-
-- `index.html`, `src/`, `vendor/` — the game itself (three.js voxel renderer, no build step, runs in any
-  WebGL2 browser)
-- `shell/` — the Windows host: a small C++ Win32 exe that opens one internal WebView2 (Edge) tab, no
-  bundled browser, no Electron. The whole web build is embedded in the exe and served from memory —
-  nothing is unpacked to disk.
-- `tools/` — the icon renderer/capturer, the embedder that packs the web build into the shell, and the
-  port scripts
-- `.github/workflows/native.yml` — builds the exe and the plain web zip on demand (artifacts only)
+- **Battle** — four fields, each with its own exclusive enemy and a boss cycle that scales up every time.
+  The Challenge card rolls a random field with 1–5 targets for a bigger purse.
+- **Fighters** — seven officers; buy them with coins, upgrade power / speed / musou / luck / health /
+  defense / allies / combos, train crits, guard and counters with XP.
+- **Train** — deadly officer duels and ally wars; XP banks even when you lose.
+- **Arena** — the wallets and the Bio-Lab (body mods with the ZXCVB battle row).
 
 ## Run it
 
-**Windows:** grab the `RoguSo-windows-x64` artifact, put `RoguSo.exe` anywhere, double-click. The game
-lives inside the exe and runs from memory; your data (`save.json`, `settings.json`, `controls.json`)
-lives in `Documents/RoguSo/`. F11 toggles fullscreen. In the title menu, Settings holds sound, display,
-graphics and the control bindings.
+**Windows:** grab the `RoguSo-windows-x64` artifact, put `RoguSo.exe` anywhere, double-click.
 
-**Any browser:** serve the folder and open it.
+**Any browser:**
 
 ```bash
 python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
-## Where your data lives
+## Data
 
-`Documents/RoguSo/` is the data folder — not the browser's:
+`Documents/RoguSo/` in the shell, `localStorage` in a plain browser:
 
-- `save.json` — every battle record and what it unlocks
-- `settings.json` — the difficulty pick (more lands here later)
-- `controls.json` — the key bindings; edit the codes and restart, delete the file for defaults
-- `runtime/` — the shell's internal WebView2 storage (leave it alone)
-- `app/` — the extracted game (refreshed by the exe when the version changes)
+- `rogu.json` — coins, XP, ownership, upgrades, the Bio-Lab
+- `save.json` — battle records
+- `settings.json` — the settings tabs
+- `controls.json` — the key bindings
 
-**Reset Progress** sits on the title menu and wipes the three JSON files.
+**Reset Progress** sits on the title menu.
 
 ## Controls
 
 | | |
 |---|---|
 | Move | `W` `A` `S` `D` / arrows |
-| Attack | `J` / left click |
-| Charge | `K` / right click |
+| Attack | `J` / left click — tap for the full combo |
+| Charge | `K` / right click — mid-combo for charge attacks |
 | Jump | `Space` |
 | Dodge | `L` / `Shift` |
-| Musou | `I` when the gold gauge is full |
+| Musou | `I` / middle click — when the gold gauge is full |
 | Camera | mouse (click the field to lock) / `Q` `E` |
 | Recenter | `R` |
+| Ally orders | `O` (Train: allies) |
+| Bio-Lab row | `Z` `X` `C` `V` `B` (hold `X` for a mine) |
 | Pause | `Esc` |
+| Fullscreen | `F11` |
 
-A gamepad works too (standard mapping).
+A gamepad works too (standard mapping). Every binding is editable in Settings → Controls.
 
 ## Build it yourself
 
-The workflow builds everything (Actions → native → Run workflow). Locally on Windows with MSVC:
+Actions → native → Run workflow (builds the exe + the web zip, artifacts only). Locally on Windows
+with MSVC:
 
 ```bat
 python tools\embed.py
@@ -74,6 +66,8 @@ cl /nologo /std:c++20 /O2 /MT /EHsc /DUNICODE /D_UNICODE roguaso.cpp ..\build\em
   /link wv2\build\native\x64\WebView2LoaderStatic.lib user32.lib gdi32.lib shell32.lib shlwapi.lib ^
   advapi32.lib ole32.lib oleaut32.lib uuid.lib /SUBSYSTEM:WINDOWS
 ```
+
+fork of [mike007jd/voxel-musou](https://github.com/mike007jd/voxel-musou)
 
 ## License
 
