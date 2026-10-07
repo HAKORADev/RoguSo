@@ -1121,20 +1121,9 @@ export function createVfx(scene, game, world) {
   // sweep = ring + dust skirt, thrust = dust bursts down the lane under a hot streak), a poise break (star + ring), a meat bun
   // eaten (jade ring, star, motes). Struck actors get the normal contact burst through `hit`.
   const BOSS_RING = [2.2, 0.55, 0.28];
-  // the roguelike's own effects: skeleton rises, ninja fog-in, the bio-lab's battle row
+  // the roguelike's own effects: skeleton rises, ninja fog-in
   on('rogue:rise', (e) => { dustPuff(e.x, e.z, 10, 1.6, 0.4, 0.4, 0.6); ring(e.x, e.z, 1.4, 0.4, [0.75, 0.7, 0.5]); lightFlash(e.x, 0.6, e.z, [0.5, 0.55, 0.35], 14, 0.25); });
   on('rogue:fog', (e) => { for (let k = 0; k < 6; k++) dustPuff(e.x + Math.sin(k * 1.05) * 2.4, e.z + Math.cos(k * 1.05) * 2.4, 8, 1.2, 1.4, 0.6, 0.35); });
-  on('rogue:bodyfx', (e) => {
-    const r = e.r || 4, fx = Math.sin(e.yaw || 0), fz = Math.cos(e.yaw || 0);
-    if (e.kind === 'milk') { for (let k = 0; k < 4; k++) dustPuff(e.x + fx * (1 + k * 1.6), e.z + fz * (1 + k * 1.6), 5, 1.4, 0.4, 1.1, 0.5); ring(e.x, e.z, r * 0.9, 0.35, [1, 1, 1.1]); }
-    else if (e.kind === 'fart') { dustRing(e.x, e.z, 20, 0.6, r * 1.6, 0.8, 0.6); ring(e.x, e.z, r, 0.45, [0.55, 0.75, 0.3]); }
-    else if (e.kind === 'boner') { beam(STREAK, e.x, e.y ?? 1, e.z, fx, 0, fz, r, 0.9, 0.28, [1.5, 0.5, 0.4]); }
-    else if (e.kind === 'cum') { dustRing(e.x, e.z, 16, 0.6, r * 1.3, 0.7, 0.55); ring(e.x, e.z, r * 0.9, 0.4, [0.95, 0.9, 0.6]); lightFlash(e.x, 1, e.z, [1.1, 1, 0.5], 20, 0.25); }
-    else if (e.kind === 'squirt') { dustColumn(e.x, e.z, 12, 0.5, r * 0.5, 2.6, [0.7, 0.9], 0.7); ring(e.x, e.z, r * 0.85, 0.4, [0.4, 0.75, 1.1]); }
-    else if (e.kind === 'mine') { ring(e.x, e.z, 1.2, 0.5, [0.5, 0.7, 0.35]); dustPuff(e.x, e.z, 6, 1, 0.3, 0.2, 0.5); }
-    else if (e.kind === 'minego') { rocks(e.x, e.z, 16, r * 0.6, 0.14, 0.34, [5, 9], 5); dustRing(e.x, e.z, 24, 0.6, r * 2, 1, 0.8); lightFlash(e.x, 0.8, e.z, [1.2, 0.7, 0.25], 46, 0.3, 12); flash(0.12); }
-    else if (e.kind === 'burntick') { dustPuff(e.x, e.z, 3, 0.8, 0.5, e.y ?? 1.2, 0.5); lightFlash(e.x, e.y ?? 1.2, e.z, [1.3, 0.5, 0.15], 8, 0.16, 4); }
-  });
   on('actor:strike', (e) => {
     const R = e.r || 3;
     if (e.kind === 'spell') {
@@ -1172,10 +1161,6 @@ export function createVfx(scene, game, world) {
     }
   });
   on('actor:hit', (e) => { if (e.stagger) { star(e.x, e.y + 0.5, e.z, 2.0, 0.3, [2.4, 2.0, 0.8]); ring(e.x, e.z, 3, 0.4, [2.2, 1.8, 0.8]); flash(0.08); } });
-  on('pickup', (e) => {
-    ring(e.x, e.z, 1.6, 0.45, [0.5, 2.0, 0.7]); star(e.x, 0.8, e.z, 1.1, 0.25, [1.2, 2.4, 1.0]);
-    for (let i = 0; i < 10; i++) sparks.spawn(e.x + vrng.range(-0.5, 0.5), vrng.range(0.1, 0.6), e.z + vrng.range(-0.5, 0.5), 0, vrng.range(1.5, 3), 0, vrng.range(0.5, 0.9), vrng.range(0.03, 0.05), 3, 0.6, 2.2, 0.8);
-  });
 
   // Musou payoff layers take the character's colour: Zhao Yun's azure dragon, Huang Zhong's fire volley, a def kit's fx.mu
   const MU_COOL = { crack: [0.4, 1.5, 2.6], wall: [0.07, 0.3, 0.45], light: [0.5, 0.9, 1] }, MU_FIRE = { crack: [2.8, 1.1, 0.25], wall: [0.8, 0.34, 0.09], light: [1, 0.6, 0.3] };

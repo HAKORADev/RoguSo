@@ -1,5 +1,5 @@
-// The roguelike screens (ui/rogue.js): Battle, Fighters, Train, Arena — the owner's redesign of the front end
-// (no story, no trials on the menu; the war is the loop). All four stand over the idle HOME field like the other
+// The roguelike screens (ui/rogue.js): Battle, Fighters, Train — the owner's redesign of the front end
+// (no story, no trials on the menu; the war is the loop). All three stand over the idle HOME field like the other
 // screens, share the paper/ink design language, and are click + keyboard driven (Esc back to the title).
 //   Battle    the locations (every field, each with its exclusive enemy), a difficulty row, GO → the officer select;
 //             the Challenge card throws a random field with 1-5 generated targets at a coin bonus.
@@ -7,23 +7,21 @@
 //             (power/speed/muso/luck/health/defense/allies/combos for coins; training crits/guard/counter for XP;
 //             the ally block's count/power/vigor for ally XP banked in Train).
 //   Train     pick the officer, pick the lesson: the deadly elimination (officer) or the ally war (allies).
-//   Arena     the wallets (coins + bodycoins) and the Bio-Lab: clothes off part by part (free), the body mods and
-//             their ZXCVB battle abilities upgraded with bodycoins (economy.js + rogue/body.js own the effects).
 import { CHARS, CHAR_ORDER, paintPortrait } from '../chars/index.js';
 import { inkWipe, afterWipe, wiping, sfx, replay } from './menu.js';
 import { DIFFS, unlocked, difficulty, setDifficulty } from '../core/difficulty.js';
 import {
-  economy, coins, bodyCoins, owned, isOwned, charPrice, buyChar,
+  economy, coins, owned, isOwned, charPrice, buyChar,
   upgradeList, allyUpgradeList, trainList, levelOf, allyLevelOf, trainLevelOf,
   upgradePrice, allyPrice, trainPrice, buyUpgrade, buyAlly, buyTrain, xpOf, allyXpOf, heroMods,
 } from '../core/economy.js';
 import { LOCATIONS, location } from '../rogue/locations.js';
-import { BIO, BIO_PARTS, CLOTHES, bodyOf, buyBody, hasGenitals, sexOf } from '../rogue/body.js';
+import { fitText } from './fittext.js';
 
 const KIND_TAG = { 5: 'The fallen rise', 6: 'They drop from the sky', 7: 'They fog in' };
 const ELEM_TAG = { fire: 'Fire spells', water: 'Water spells', rock: 'Stone spells', air: 'Wind spells' };
 
-const wallet = () => `<div class="rg-wallet"><span>◈ ${coins()}</span><span class="bc">❋ ${bodyCoins()}</span></div>`;
+const wallet = () => `<div class="rg-wallet"><span>◈ ${coins()}</span></div>`;
 
 // shared keyboard driver: ↑/↓ move the cursor among [data-nav] items, Enter activates the focused button,
 // ←/→ nudge seg rows. Everything also answers the mouse.
@@ -39,6 +37,7 @@ function navKeys(el, opts) {
   };
   const key = (e) => {
     if (!el.isConnected || el.hidden) return;
+    if (e.code === 'Escape' && opts?.back) { e.preventDefault(); opts.back(); return; }
     if (e.code === 'ArrowDown') { e.preventDefault(); focus(cur + 1); sfx('move'); }
     else if (e.code === 'ArrowUp') { e.preventDefault(); focus(cur - 1); sfx('move'); }
     else if (e.code === 'Enter' || e.code === 'Space') {
@@ -125,9 +124,9 @@ export function createBattle(el, flow) {
     afterWipe(() => inkWipe(() => flow.go('select', { mode: 'challenge', loc: L.id, ch: null, map: null, roll: true })));
   });
   paintPick();
-  navKeys(el, { exit: exitHooks });
+  navKeys(el, { exit: exitHooks, back: () => { if (!wiping()) { sfx('back'); inkWipe(() => flow.go('title')); } } });
   return {
-    enter() { $('.rg-wallet')?.replaceWith(Object.assign(document.createElement('template'), { innerHTML: wallet().trim() }).content.firstChild); replay(el, 'in'); },
+    enter() { $('.rg-wallet')?.replaceWith(Object.assign(document.createElement('template'), { innerHTML: wallet().trim() }).content.firstChild); replay(el, 'in'); fitText(el); },
     exit() { exitHooks.forEach((f) => f()); },
   };
 }
@@ -158,35 +157,47 @@ export function createFighters(el, flow) {
     }).join('');
     roster.querySelectorAll('canvas').forEach((cv, k) => paintPortrait(cv, CHARS[CHAR_ORDER[k]]));
   }
-  function row(label, line, eff, level, max, priceTxt, buy, nav) {
+  function row(label, line, eff, level, max, priceTxt) {
     const r = document.createElement('div');
-    r.className = 'rg-urow'; r.dataset.nav = nav || 'upg';
+    r.className = 'rg-urow'; r.dataset.nav = 'upg';
     r.innerHTML = `<div class="rg-ulab"><b>${label}</b><small>${line}</small><em>${eff}</em></div>
       <div class="rg-ulvl">${Array.from({ length: max }, (_, k) => `<u class="${k < level ? 'f' : ''}"></u>`).join('')}</div>
       <button ${level >= max ? 'disabled' : ''}><b>${level >= max ? 'MAX' : priceTxt}</b></button>`;
-    r.querySelector('button').addEventListener('click', () => { if (buy()) { sfx('stamp'); paintAll(); } else sfx('back'); });
     return r;
   }
   function paintUpg() {
-    const id = cur, m = heroMods(id);
-    const head = `<div class="rg-uhead"><i>${CHARS[id].seal}</i><div><b>${CHARS[id].name}</b><small>${isOwned(id) ? (isOwned(id) ? 'under your banner' : '') : 'not yet yours'}</small></div></div>`;
-    const sections = [];
-    sections.push(`<h4>War upgrades <span>coins</span></h4>`);
-    for (const u of upgradeList()) {
-      const l = levelOf(id, u.key);
-      sections.push(row(u.label, u.line, u.eff(l), l, u.max, `◈ ${upgradePrice(u.key, id)}`, () => buyUpgrade(id, u.key)));
+    const id = cur;
+    const head = `<div class="rg-uhead"><i>${CHARS[id].seal}</i><div><b>${CHARS[id].name}</b><small>${isOwned(id) ? 'under your banner' : 'not yet yours'}</small></div></div>`;
+    const html = [], binds = [];
+    if (!isOwned(id)) {
+      const price = charPrice(id), can = coins() >= price;
+      html.push(`<div class="rg-buy"><p><b>${CHARS[id].name}</b> fights for whoever pays — ◈ ${price} recruits him for your banner.</p>
+        <button class="rg-buybtn ${can ? '' : 'poor'}" ${can ? '' : 'disabled'}><b>Recruit · ◈ ${price}</b><small>${can ? 'he joins on the stamp' : `you hold ◈ ${coins()} — come back richer`}</small></button></div>`);
+      binds.push({ sel: '.rg-buybtn', buy: () => buyChar(id), own: true });
+    } else {
+      html.push(`<h4>War upgrades <span>coins</span></h4>`);
+      for (const u of upgradeList()) {
+        const l = levelOf(id, u.key);
+        html.push(row(u.label, u.line, u.eff(l), l, u.max, `◈ ${upgradePrice(u.key, id)}`).outerHTML);
+        binds.push({ buy: () => buyUpgrade(id, u.key) });
+      }
+      html.push(`<h4>Training <span>XP · ${xpOf(id)} banked</span></h4>`);
+      for (const u of trainList()) {
+        const l = trainLevelOf(id, u.key);
+        html.push(row(u.label, u.line, u.eff(l), l, u.max, `✦ ${trainPrice(u.key, id)}`).outerHTML);
+        binds.push({ buy: () => buyTrain(id, u.key) });
+      }
+      html.push(`<h4>The ally block <span>ally XP · ${allyXpOf(id)} banked</span></h4>`);
+      for (const u of allyUpgradeList()) {
+        const l = allyLevelOf(id, u.key);
+        html.push(row(u.label, u.line, u.eff(l), l, u.max, `✦ ${allyPrice(u.key, id)}`).outerHTML);
+        binds.push({ buy: () => buyAlly(id, u.key) });
+      }
     }
-    sections.push(`<h4>Training <span>XP · ${xpOf(id)} banked</span></h4>`);
-    for (const u of trainList()) {
-      const l = trainLevelOf(id, u.key);
-      sections.push(row(u.label, u.line, u.eff(l), l, u.max, `✦ ${trainPrice(u.key, id)}`, () => buyTrain(id, u.key)));
-    }
-    sections.push(`<h4>The ally block <span>ally XP · ${allyXpOf(id)} banked</span></h4>`);
-    for (const u of allyUpgradeList()) {
-      const l = allyLevelOf(id, u.key);
-      sections.push(row(u.label, u.line, u.eff(l), l, u.max, `✦ ${allyPrice(u.key, id)}`, () => buyAlly(id, u.key)));
-    }
-    upg.innerHTML = head + `<div class="rg-scroll">${sections.join('')}</div>`;
+    upg.innerHTML = head + `<div class="rg-scroll">${html.join('')}</div>`;
+    const rows = [...upg.querySelectorAll('.rg-urow')];
+    binds.filter((b) => !b.own).forEach((b, i) => rows[i]?.querySelector('button')?.addEventListener('click', () => { if (b.buy()) { sfx('stamp'); paintAll(); } else sfx('back'); }));
+    binds.filter((b) => b.own).forEach((b) => upg.querySelector(b.sel)?.addEventListener('click', () => { if (b.buy()) { sfx('stamp'); paintAll(); } else sfx('back'); }));
   }
   function paintAll() {
     paintRoster(); paintUpg();
@@ -196,16 +207,13 @@ export function createFighters(el, flow) {
     const b = e.target.closest('.rg-char');
     if (!b) return;
     const id = b.dataset.id;
-    if (!isOwned(id)) {
-      if (buyChar(id)) { sfx('stamp'); cur = id; paintAll(); return; }
-      sfx('back');
-      return;
-    }
+    if (!isOwned(id) && id !== cur) { cur = id; sfx('move'); paintAll(); return; }
+    if (!isOwned(id)) { if (buyChar(id)) { sfx('stamp'); paintAll(); } else sfx('back'); return; }
     cur = id; sfx('move'); paintAll();
   });
-  navKeys(el, { exit: exitHooks });
+  navKeys(el, { exit: exitHooks, back: () => { if (!wiping()) { sfx('back'); inkWipe(() => flow.go('title')); } } });
   return {
-    enter() { paintAll(); replay(el, 'in'); },
+    enter() { paintAll(); replay(el, 'in'); fitText(el); },
     exit() { exitHooks.forEach((f) => f()); },
   };
 }
@@ -250,85 +258,9 @@ export function createTrain(el, flow) {
   };
   $('[data-nav="tc"]').addEventListener('click', () => go('trainchar'));
   $('[data-nav="ta"]').addEventListener('click', () => go('trainally'));
-  navKeys(el, { exit: exitHooks });
+  navKeys(el, { exit: exitHooks, back: () => { if (!wiping()) { sfx('back'); inkWipe(() => flow.go('title')); } } });
   return {
-    enter() { paint(); replay(el, 'in'); },
-    exit() { exitHooks.forEach((f) => f()); },
-  };
-}
-
-// ---------------------------------------------------------------- Arena (+ the Bio-Lab)
-export function createArena(el, flow) {
-  const exitHooks = [];
-  let cur = owned()[0] || 'zhaoyun';
-  el.innerHTML = `
-    <div class="rg">
-      <header class="rg-head"><h2>Arena</h2><small>the war's purse · the Bio-Lab</small><div class="rg-wallet"></div></header>
-      <div class="rg-body">
-        <nav class="rg-roster rg-labroster"></nav>
-        <aside class="rg-upg"><div class="rg-scroll rg-lab"></div></aside>
-      </div>
-      <footer class="ui-foot"><span><kbd>Esc</kbd>Back</span><span><kbd>Click</kbd>Adjust</span></footer>
-    </div>`;
-  const $ = (s) => el.querySelector(s);
-  const roster = $('.rg-labroster'), lab = $('.rg-lab');
-
-  function partRow(charId, part) {
-    const B = BIO[part], body = bodyOf(charId);
-    const owned2 = body.parts[part.key] | 0, lvl = body.upg[part.key] | 0;
-    const r = document.createElement('div');
-    r.className = 'rg-urow' + (B.ability ? ' abil' : '');
-    r.dataset.nav = 'part';
-    const price = B.price + lvl * B.step;
-    const isMod = part.group === 'mod';
-    r.innerHTML = `<div class="rg-ulab"><b>${B.label}</b><small>${B.line}</small>
-        <em>${B.ability ? `ZXCVB · ${B.ability}` : 'armor only'}</em></div>
-      ${isMod ? `<button class="rg-take" data-take="${part.key}"><b>${owned2 ? 'Owned' : `❋ ${B.cost}`}</b><small>${owned2 ? 'take it off any time' : 'grow it'}</small></button>` : ''}
-      ${owned2 && B.upgrades?.length ? `<button class="rg-up" data-up="${part.key}"><b>${lvl >= B.max ? 'MAX' : `❋ ${price}`}</b><small>${lvl >= B.max ? '' : B.upgrades[lvl % B.upgrades.length]}</small></button>` : ''}`;
-    const take = r.querySelector('[data-take]');
-    if (take) take.addEventListener('click', () => {
-      if (!owned2 && buyBody(charId, part.key, B.cost)) { sfx('stamp'); paint(); } else if (!owned2) sfx('back');
-    });
-    const up = r.querySelector('[data-up]');
-    if (up) up.addEventListener('click', () => {
-      if (lvl < B.max && buyBody(charId, part.key, price, true)) { sfx('stamp'); paint(); } else if (lvl < B.max) sfx('back');
-    });
-    return r;
-  }
-
-  function paint() {
-    roster.innerHTML = owned().map((id) => {
-      const c = CHARS[id];
-      if (!c) return '';
-      return `<button class="rg-char ${id === cur ? 'on' : ''}" data-id="${id}" data-nav="char">
-        <canvas width="20" height="20"></canvas><div><b>${c.name}</b><small>${sexOf(id)} · ${bodyOf(id).nude ? 'stripped' : 'dressed'}</small></div></button>`;
-    }).join('');
-    roster.querySelectorAll('canvas').forEach((cv, k) => paintPortrait(cv, CHARS[owned()[k]]));
-    const id = cur, body = bodyOf(id);
-    const clothes = Object.entries(CLOTHES).map(([k, label]) => `
-      <button class="rg-strip ${body.clothes[k] ? '' : 'off'}" data-strip="${k}" data-nav="strip">
-        <b>${label}</b><small>${body.clothes[k] ? 'worn' : 'off'}</small></button>`).join('');
-    lab.innerHTML = `
-      <div class="rg-uhead"><i>${CHARS[id].seal}</i><div><b>${CHARS[id].name}</b><small>the lab takes no side: parts are parts</small></div></div>
-      <h4>Stripping <span>free, always</span></h4>
-      <div class="rg-strips">${clothes}</div>
-      <h4>Body work <span>bodycoins ❋ · dropped by the nude</span></h4>
-      ${!hasGenitals(id) ? '<p class="rg-note">This officer\'s frame is set — the lab respects it.</p>' : ''}
-      ${BIO_PARTS.filter((p) => p.group === 'mod' ? hasGenitals(id) : true).map((p) => partRow(id, p).outerHTML).join('')}`;
-    lab.querySelectorAll('[data-strip]').forEach((b) => b.addEventListener('click', () => {
-      body.clothes[b.dataset.strip] = !body.clothes[b.dataset.strip];
-      body.nude = !Object.values(body.clothes).some(Boolean);
-      sfx('ok'); paint();
-    }));
-  }
-  roster.addEventListener('click', (e) => {
-    const b = e.target.closest('.rg-char');
-    if (!b) return;
-    cur = b.dataset.id; sfx('move'); paint();
-  });
-  navKeys(el, { exit: exitHooks });
-  return {
-    enter() { cur = owned()[0] || cur; paint(); replay(el, 'in'); },
+    enter() { paint(); replay(el, 'in'); fitText(el); },
     exit() { exitHooks.forEach((f) => f()); },
   };
 }

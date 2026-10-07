@@ -970,10 +970,12 @@
   .st-chip:hover { box-shadow: 0 0 0 .12rem rgba(242,193,78,.6); color: #fff6d8; }
   .st-map.armed .st-chip { color: #ffe9b0; box-shadow: 0 0 0 .12rem rgba(242,193,78,.55); }
   .st-capture { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(8,5,4,.72); cursor: none; }
+  .st-capture[hidden] { display: none; }
   .st-capture p { margin: 0; padding: 2.4rem 5rem 2.8rem; text-align: center; background: rgba(18,12,9,.95); box-shadow: 0 0 0 .16rem #f2c14e, 0 0 3rem rgba(0,0,0,.8); }
   .st-capture b { display: block; font: 700 3.6rem/1 var(--brush); letter-spacing: .3rem; color: #fff2d0; }
   .st-capture small { display: block; margin-top: .8rem; font: 600 max(13px, 1.5rem)/1 var(--sans); letter-spacing: .12em; color: var(--dim); }
   .st-modal { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; background: rgba(8,5,4,.6); }
+  .st-modal[hidden] { display: none; }
   .st-mcard { padding: 2rem 3rem 2.4rem; background: rgba(18,12,9,.97); box-shadow: 0 0 0 .16rem rgba(179,38,30,.9), 0 0 3rem rgba(0,0,0,.8); }
   .st-q { margin: 0 0 1.6rem; font: 700 2.4rem/1.4 var(--kai); color: #f6ecd9; max-width: 60rem; }
   .st-q b { color: #ffd66a; }
@@ -1012,7 +1014,10 @@
   .rg-go b { display: block; font: 700 2.8rem/1 var(--brush); letter-spacing: .15rem; }
   .rg-go small { display: block; margin-top: .3rem; font: 600 max(11px, 1.2rem)/1 var(--sans); letter-spacing: .08em; opacity: .8; }
   .rg-go:disabled { filter: grayscale(1) brightness(.6); cursor: default; }
-  .rg-chal { margin-top: auto; background: rgba(40,14,10,.75); border: .1rem solid rgba(216,40,60,.5); border-radius: .5rem; padding: 1.2rem 1.4rem; }
+  .rg-diff .st-row { min-height: 4.2rem; grid-template-columns: 1fr; column-gap: 0; }
+  .rg-diff .st-seg { max-width: none; width: 100%; justify-content: space-between; }
+  .rg-diff .st-val { min-width: 0; flex: 1; }
+  .rg-chal { margin-top: 1.4rem; background: rgba(40,14,10,.75); border: .1rem solid rgba(216,40,60,.5); border-radius: .5rem; padding: 1.2rem 1.4rem; }
   .rg-chal h4 { margin: 0; font: 700 2.2rem/1 var(--brush); letter-spacing: .2rem; color: #ff9d8a; }
   .rg-chal p { margin: .6rem 0 1rem; font: 500 max(12px, 1.35rem)/1.4 var(--sans); color: #e8cfc0; }
   .rg-chalgo { width: 100%; text-align: left; padding: 1rem 1.2rem; cursor: pointer; border-radius: .5rem; color: #ffe9e0;

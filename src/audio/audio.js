@@ -320,7 +320,7 @@ export function createAudio(game) {
     duck(0.5, 0.15, 0.25);
   });
   on('actor:hit', (e) => { if (ok() && e.stagger) play(pick(B.clank), { gain: 0.8, rate: 0.7, send: 0.2, prio: 1 }); });
-  on('pickup', () => ok() && play(B.ready, { gain: 0.45, rate: 1.35, send: 0.25, prio: 1 }));
+  on('pickup:coin', () => ok() && play(B.ready, { gain: 0.45, rate: 1.35, send: 0.25, prio: 1 }));
 
   // ---- Musou
   on('musou:ready', () => ok() && play(B.ready, { gain: 0.5, send: 0.3, prio: 1 }));

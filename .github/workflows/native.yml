@@ -7,7 +7,7 @@ on:
         required: false
         default: ''
 permissions:
-  contents: read
+  contents: write
   actions: write
 jobs:
   windows:
@@ -64,56 +64,41 @@ jobs:
             user32.lib gdi32.lib shell32.lib shlwapi.lib advapi32.lib ole32.lib oleaut32.lib uuid.lib ^
             /SUBSYSTEM:WINDOWS /LTCG
 
-      - name: package
+      - name: package the one zip
         shell: pwsh
         run: |
-          Compress-Archive -Path build/RoguSo.exe -DestinationPath "build/RoguSo-${{ steps.ver.outputs.version }}-windows-x64.zip"
-          Get-Item build/RoguSo.exe, "build/RoguSo-${{ steps.ver.outputs.version }}-windows-x64.zip" | Select-Object Name, Length
+          New-Item -ItemType Directory -Path build/roguaso-web -Force | Out-Null
+          Copy-Item index.html, sword.png build/roguaso-web/
+          Copy-Item src, vendor build/roguaso-web -Recurse
+          Compress-Archive -Path build/roguaso-web -DestinationPath build/web.zip
+          $name = "RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-windows"
+          Compress-Archive -Path build/RoguSo.exe, build/web.zip -DestinationPath "build/$name.zip"
+          "zipname=$name" >> $env:GITHUB_OUTPUT
+          Get-Item "build/$name.zip" | Select-Object Name, Length
 
-      - name: upload the exe
+      - name: upload the artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-windows-x64
-          path: build/RoguSo.exe
+          name: RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-windows
+          path: "build/RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-windows.zip"
 
-      - name: upload the zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-windows-x64-zip
-          path: "build/RoguSo-${{ steps.ver.outputs.version }}-windows-x64.zip"
-
-  web:
-    name: package the plain browser build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: resolve the version
-        id: ver
+      - name: publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          v='${{ github.event.inputs.version }}'
-          if [ -z "$v" ]; then
-            v=$(grep -m1 '^## ' CHANGELOG.md | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
-          fi
-          if [ -z "$v" ]; then v='0.0.0'; fi
-          echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "building version $v"
-
-      - name: pack the web build
-        run: |
-          mkdir -p build/roguaso-web
-          cp -r index.html sword.png src vendor build/roguaso-web/
-          cd build && zip -qr "RoguSo-${{ steps.ver.outputs.version }}-web.zip" roguaso-web && cd ..
-
-      - name: upload the web build
-        uses: actions/upload-artifact@v4
-        with:
-          name: RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-web
-          path: "build/RoguSo-${{ steps.ver.outputs.version }}-web.zip"
+          $tag = "v${{ steps.ver.outputs.version }}"
+          $zip = "build/RoguSo-${{ steps.ver.outputs.version }}-r${{ github.run_number }}-windows.zip"
+          $notes = "RoguSo $tag - build ${{ github.run_number }} (commit ${{ github.sha }}).`n`nThe zip carries RoguSo.exe (the shell: the whole game embedded, double-click and play) and web.zip (the plain browser build). No installer, no dependencies."
+          if (-not (gh release view $tag --json id 2>$null)) {
+            gh release create $tag $zip --title "RoguSo $tag" --notes $notes
+          } else {
+            gh release upload $tag $zip --clobber
+          }
 
   clean:
     name: delete the superseded artifacts
-    needs: [windows, web]
+    needs: [windows]
     runs-on: ubuntu-latest
     steps:
       - name: keep only the artifacts of this run

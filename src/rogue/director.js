@@ -40,14 +40,14 @@ export function createRogue(game) {
   const S = { mode: 'rogue', t: 0, done: false, maxChain: 0 };
   const st = { morale: 0.5, target: null, timer: null, defend: null, hq: null };
   let loc = null, cfg = null, cycle = 0, bossI = 0, sinceBoss = 0, sinceCoin = 0, waveT = 0, bossKey = null, bossDown = 0;
-  let downT = -1, earned = { coins: 0, xp: 0, allyXp: 0, bodycoins: 0 }, targets = [], skyQ = [], rivals = [];
+  let downT = -1, earned = { coins: 0, xp: 0, allyXp: 0 }, targets = [], skyQ = [], rivals = [];
   let musouStarts = 0, coinsLooted = 0, allyForward = true, allyModeT = 0;
 
   st.stats = () => {
     const h = game.hero;
     return {
       kos: h.kos, time: Math.round(S.t / 60), hpMax: h.hpMax, maxChain: S.maxChain, dmg: S.dmg,
-      coins: earned.coins, xp: earned.xp, allyXp: earned.allyXp, bodycoins: earned.bodycoins,
+      coins: earned.coins, xp: earned.xp, allyXp: earned.allyXp,
       cycle, targets: targets.map((q) => ({ ...q })),
       runKos: h.kos, runTime: Math.round(S.t / 60),
     };
@@ -149,7 +149,7 @@ export function createRogue(game) {
     cfg = c; loc = c.loc;
     Object.assign(S, { mode: c.mode, t: 0, done: false, maxChain: 0, dmg: 0, won: -1 });
     cycle = 0; bossI = 0; sinceBoss = 0; sinceCoin = 0; waveT = 8 * 60; bossKey = null; bossDown = -1e9;
-    downT = -1; earned = { coins: 0, xp: 0, allyXp: 0, bodycoins: 0 };
+    downT = -1; earned = { coins: 0, xp: 0, allyXp: 0 };
     targets = c.mode === 'challenge' ? (c.targets || makeTargets(c.targetCount || 3)) : [];
     skyQ = []; rivals = []; musouStarts = 0; coinsLooted = 0; allyForward = true;
     S.mods = heroMods(c.char);

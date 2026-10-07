@@ -1,19 +1,25 @@
 # RoguSo
 
 A roguelike musou battlefield brawler. Pick a field, fight endless waves, kill the boss when he comes
-back bigger, bank coins and XP, upgrade your officer, repeat. Runs in any WebGL2 browser and as one
+back bigger, bank coins, upgrade your officer, repeat. Runs in any WebGL2 browser and as one
 small Windows `.exe` (double-click and play).
 
-- **Battle** — four fields, each with its own exclusive enemy and a boss cycle that scales up every time.
-  The Challenge card rolls a random field with 1–5 targets for a bigger purse.
-- **Fighters** — seven officers; buy them with coins, upgrade power / speed / musou / luck / health /
-  defense / allies / combos, train crits, guard and counters with XP.
-- **Train** — deadly officer duels and ally wars; XP banks even when you lose.
-- **Arena** — the wallets and the Bio-Lab (body mods with the ZXCVB battle row).
+- **Battle** — four fields, each with its own exclusive enemy and a boss cycle that scales up every
+  time. The Challenge card rolls a random field with 1–5 targets for a bigger purse.
+- **Fighters** — seven officers; Zhao Yun is free, the rest cost coins (the priciest hits the
+  hardest). Every officer carries his own upgrade table: power / speed / musou / luck / health /
+  defense / allies / combos for coins, crits / guard / counters for banked XP, ally count / power /
+  vigor for ally XP.
+- **Train** — deadly officer duels and ally wars; XP and ally XP bank even when you lose. No HP
+  regeneration anywhere, ever — the only thing on the ground is money.
+- **Records** — per-officer lifetime kills, runs, best KOs and the coin purse, over the rank wall.
 
 ## Run it
 
-**Windows:** grab the `RoguSo-windows-x64` artifact, put `RoguSo.exe` anywhere, double-click.
+**Windows:** grab the latest `RoguSo-windows` zip from
+[Releases](https://github.com/HAKORADev/RoguSo/releases), put `RoguSo.exe` anywhere, double-click.
+The zip carries the browser build too (`roguaso-web/` — open its `index.html` over any static
+server).
 
 **Any browser:**
 
@@ -26,7 +32,7 @@ python3 -m http.server 8000
 
 `Documents/RoguSo/` in the shell, `localStorage` in a plain browser:
 
-- `rogu.json` — coins, XP, ownership, upgrades, the Bio-Lab
+- `rogu.json` — coins, XP, ownership, upgrades
 - `save.json` — battle records
 - `settings.json` — the settings tabs
 - `controls.json` — the key bindings
@@ -46,16 +52,15 @@ python3 -m http.server 8000
 | Camera | mouse (click the field to lock) / `Q` `E` |
 | Recenter | `R` |
 | Ally orders | `O` (Train: allies) |
-| Bio-Lab row | `Z` `X` `C` `V` `B` (hold `X` for a mine) |
 | Pause | `Esc` |
 | Fullscreen | `F11` |
 
-A gamepad works too (standard mapping). Every binding is editable in Settings → Controls.
+A gamepad works too (standard mapping). Every binding is editable in Settings → Controls, and every
+menu answers both the mouse and the keyboard.
 
 ## Build it yourself
 
-Actions → native → Run workflow (builds the exe + the web zip, artifacts only). Locally on Windows
-with MSVC:
+Actions → native → Run workflow (one zip per build, artifacts only). Locally on Windows with MSVC:
 
 ```bat
 python tools\embed.py
@@ -67,7 +72,7 @@ cl /nologo /std:c++20 /O2 /MT /EHsc /DUNICODE /D_UNICODE roguaso.cpp ..\build\em
   advapi32.lib ole32.lib oleaut32.lib uuid.lib /SUBSYSTEM:WINDOWS
 ```
 
-fork of [mike007jd/voxel-musou](https://github.com/mike007jd/voxel-musou)
+[Original project: mike007jd/voxel-musou](https://github.com/mike007jd/voxel-musou)
 
 ## License
 

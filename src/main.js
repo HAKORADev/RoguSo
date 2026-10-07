@@ -45,7 +45,6 @@ import { createStory } from './story/index.js';
 import { CHAPTERS, chapter } from './story/chapters.js';
 import { createRogue } from './rogue/director.js';
 import { location as locById, ROGUE_MODES } from './rogue/locations.js';
-import { bodyStep, bodyAbility, bodyMine, bodyReset } from './rogue/body.js';
 import * as economy from './core/economy.js';
 import { reloadEconomy } from './core/economy.js';
 import { createTitle } from './ui/title.js';
@@ -60,7 +59,7 @@ import * as storage from './core/storage.js';
 import { applyBindings, bindingsTemplate, bindings, labelSlot, ACTIONS } from './core/input.js';
 import { read, write } from './core/storage.js';
 import { createSettings } from './ui/settings.js';
-import { createBattle, createFighters, createTrain, createArena } from './ui/rogue.js';
+import { createBattle, createFighters, createTrain } from './ui/rogue.js';
 import { createScheduler } from './core/scheduler.js';
 import { updateDayNight } from './world/daynight.js';
 import { reload as reloadSettings } from './core/settings.js';
@@ -100,7 +99,7 @@ game.hero = createHero(game);
 game.crowd = createCrowd(game, ENEMIES);
 game.combat = createCombat(game);
 game.actors = createActors(game);                 // hero-model NPCs: the boss, allied officers (src/actors, CONTRACTS C5)
-game.pickups = createPickups(game);               // meat-bun heals dropped by officers / every 40th grunt — and the rogue's coins
+game.pickups = createPickups(game);               // the roguelike's coins (the only drop: no healing anywhere)
 game.musou = game.hero.kit.createMusou(game);     // the character's Musou (rebuilt with the kit in startBattle)
 game.story = createStory(game);
 game.rogue = createRogue(game);                   // the roguelike run director (rogue modes only; story owns the rest)
@@ -134,7 +133,6 @@ function step() {
     ['crowd', () => game.crowd.step()], ['actors', () => { game.actors.step(); game.pickups.step(); }],
     ['musou', () => game.musou.step()],
     ['director', () => (ROGUE_MODES.has(game.mode) ? game.rogue.step() : game.story.step())],
-    ['body', () => bodyStep(game)],
   ];
   for (const [name, run] of parts) {
     try { run(); } catch (err) { simFault(name, err); }
@@ -206,7 +204,6 @@ function startBattle({ char = 'zhaoyun', mode = 'free', ch, map, loc: locId } = 
   if (newKit) buildViews();
   heroView.reset();
   game.actors.reset(); game.pickups.reset();                                              // C5
-  bodyReset();                                                                            // the lab's per-run ammo
   if (rogue) game.rogue.reset({ mode, char, loc: L });
   else game.story.reset({ mode, char, ch });                                                // C2
   menu.querySelector('.t').innerHTML = `${who.name}<i>${who.seal}</i>`;
@@ -351,7 +348,7 @@ const screens = {
   prologue: createPrologue($('prologue'), flow), result: createResult($('result'), flow),
   settings: createSettings($('settings'), flow),
   battlemenu: createBattle($('battlemenu'), flow), fighters: createFighters($('fighters'), flow),
-  train: createTrain($('train'), flow), arena: createArena($('arena'), flow),
+  train: createTrain($('train'), flow),
 };
 // a story win/loss goes into the records (rec: what it beat and what it opened — the result screen shows both);
 // reason: a fail beat's defeat line. A ROGUE run ends here too: the run's earnings bank (coins / XP / ally XP —
@@ -372,19 +369,10 @@ on('rogue:end', (e) => {
 // the roguelike's ally order (Train → the allies): O sends them forward / calls them back to guard. The Bio-Lab's
 // battle row lives on ZXCVB (kept clear of every other binding): a tap fires the part's ability, holding X plants a
 // mine instead of the fart ring.
-let xDownAt = 0;
 addEventListener('keydown', (e) => {
   if (state !== 'battle' || paused || e.repeat || e.defaultPrevented) return;
   if (e.code === 'KeyO' && game.mode === 'trainally') { game.rogue.orderAllies(); return; }
-  if (e.code === 'KeyX') { xDownAt = performance.now(); return; }   // decided on release (tap = ring, hold = mine)
-  if (BIO_KEYS.has(e.code)) bodyAbility(game, e.code);
 });
-addEventListener('keyup', (e) => {
-  if (e.code !== 'KeyX' || state !== 'battle' || paused) return;
-  if (performance.now() - xDownAt > 260) { if (!bodyMine(game)) bodyAbility(game, 'KeyX'); }
-  else bodyAbility(game, 'KeyX');
-});
-const BIO_KEYS = new Set(['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB']);
 addEventListener('keydown', (e) => {
   // opens; the menu's own nav (registered first) closes it and marks the key handled
   if (state === 'battle' && !paused && e.code === 'Escape' && !e.defaultPrevented) setPaused(true);

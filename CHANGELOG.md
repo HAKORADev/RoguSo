@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.7.5 - the polish pass
+
+The owner's test report, fixed at the root. The Bio-Lab and every body system are GONE — characters
+stay clothed, the ZXCVB row is dead, bodycoins no longer exist; anything the lab used to grant lives
+in the officers' own upgrade tables now. One build, one zip.
+
+- **Settings opened straight into the bind dialog**: `.st-capture` and `.st-modal` carry `display:
+  grid` in CSS, which overrode the `hidden` attribute — the empty conflict dialog floated over every
+  visit and ate the clicks. Both overlays honor `hidden` now, and Escape walks back out of anything
+  (capture → dialog → armed Modify → back to the title).
+- **Escape is wired on every menu**: Battle, Fighters and Train never had a back handler at all (the
+  footer promised one). All of them return to the title now; Settings gained the same law.
+- **Fighters showed `[object HTMLDivElement]`**: the upgrade rows were DOM elements pushed into a
+  string join. Rows render properly now — and the row buttons are re-bound after the paint (the
+  first pass lost every handler). Clicking a locked officer focuses him and shows a **Recruit**
+  button that lights up once the purse covers his price.
+- **The stat page printed `undefined`**: the select screen destructured a two-column stat list as
+  three. Labels read Attack / Defence / Speed / Reach.
+- **Text fit reaches the roguelike screens**: every Battle / Fighters / Train label, price and note
+  now scales to stay inside its box; the difficulty selector's arrows sit inside the card (the seg
+  row was wider than the column) and the Challenge card sits with the March button instead of
+  drifting to the bottom edge.
+- **No HP regeneration anywhere**: meat-bun drops are gone (officers and every 40th grunt dropped
+  healing buns — the old HP points, still alive). The only pickup in the game is the coin; the
+  pickup sound plays for it.
+- **Maps have physics**: every big placed prop (tents, houses, carts, boulders, towers, supply
+  stacks) hands its footprint to the walk field after the dressing builds — a 0.4 m margin, baked
+  into the grid. No more strolling through solid objects.
+- **The Bio-Lab removed**: `rogue/body.js` deleted, the Arena screen and its menu entry with it
+  (the wallet lives in Records and in every screen header), bodycoins stripped from the economy,
+  the director and the VFX. ZXCVB is free again.
+- **One zip**: the workflow uploads a single `RoguSo-<version>-r<n>-windows.zip` (exe + browser
+  build inside) and publishes it as the release; the three-artifact pile is gone. The version still
+  reads the changelog.
+- **The harness walked the new front end** again after all of the above (menus → battle → settings
+  → rogue/train boots), plus a settings/cursor click-through probe and an Escape check per screen.
+
 ## v0.7.0 - the roguelike
 
 The redesign. No story, no trials on the menu — the game is a loop now: **Battle, Fighters, Train**,

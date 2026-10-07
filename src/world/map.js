@@ -27,7 +27,7 @@ export let ROUTE = [];
 /** Normalised water, null on a dry map: the def's water + X (along 'x'), c (centre fn), dc (its slope), hw, bed, fords, y. */
 export let WATER = null;
 
-let PIECES = [], CARVE = [], PROPS = [], ROUTE_S = [], GATE_LIST = [];
+let PIECES = [], CARVE = [], PROPS = [], ROUTE_S = [], GATE_LIST = [], SOLIDS = [];
 let GX0 = 0, GZ0 = 0, HNX = 1, HNZ = 1, HGT = null, OWN = null, FIELD = null;
 const HS = 2;
 
@@ -56,6 +56,18 @@ function vnoise(x, z, seed) {
 export const noise2 = (x, z, seed = 1) => vnoise(x, z, seed) * 0.62 + vnoise(x * 2.3 + 7, z * 2.3 + 3, seed + 1) * 0.38;
 export const smooth = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+/** Re-walk the FIELD grid (heights stay): called by loadMap and again once the dressing hands in its solid
+ *  footprints (setSolids) — every big placed prop then blocks walking for real. */
+function bakeField() {
+  if (!FIELD) return;
+  for (let j = 0; j < HNZ; j++) for (let i = 0; i < HNX; i++) { evalPieces(GX0 + i * HS, GZ0 + j * HS); FIELD[i + j * HNX] = _s; }
+}
+/** The dressing's solid footprints [x0, z0, x1, z1] (tents, houses, carts, boulders): carved out of the walk field
+ *  with a 0.4 m margin. Call after loadMap, once the scene build knows where everything stands. */
+export function setSolids(rects) {
+  SOLIDS = rects || [];
+  bakeField();
+}
 /** Render side: (x, z) lies under a solid set piece's cut-out (def.props, ± pad m): no rock columns / boulders grow there. */
 export const onProp = (x, z, pad = 1) => PROPS.some((r) => x > r[0] - pad && x < r[2] + pad && z > r[1] - pad && z < r[3] + pad);
 
@@ -143,6 +155,7 @@ function evalPieces(x, z) {
     if (s > _s) { _s = s; _o = k; _h = p.rect || p.ell ? (typeof p.h === 'function' ? p.h(x, z) : p.h) : h; }
   }
   for (const r of CARVE) _s = Math.min(_s, -rectIn(r, x, z));
+  for (const r of SOLIDS) _s = Math.min(_s, -rectIn(r, x, z) - 0.4);
   if (!WATER) return;
   const W = WATER, dz = waterD(x, z), fi = fordIn(W.X ? x : z);
   _s = Math.min(_s, Math.max(dz - W.hw, fi));                                  // deep water is not walkable
@@ -162,7 +175,9 @@ export function loadMap(def) {
   const [x0, z0, x1, z1] = def.grid;
   GX0 = x0; GZ0 = z0; HNX = (x1 - x0) / HS + 1; HNZ = (z1 - z0) / HS + 1;
   HGT = new Float32Array(HNX * HNZ); OWN = new Uint8Array(HNX * HNZ); FIELD = new Float32Array(HNX * HNZ);
-  for (let j = 0; j < HNZ; j++) for (let i = 0; i < HNX; i++) { evalPieces(GX0 + i * HS, GZ0 + j * HS); HGT[i + j * HNX] = _h; OWN[i + j * HNX] = _o; FIELD[i + j * HNX] = _s; }
+  SOLIDS = [];
+  bakeField();
+  for (let j = 0; j < HNZ; j++) for (let i = 0; i < HNX; i++) { evalPieces(GX0 + i * HS, GZ0 + j * HS); HGT[i + j * HNX] = _h; OWN[i + j * HNX] = _o; }
   // seams where two pieces meet at slightly different heights: two passes of a masked blur (only neighbours within
   // 1.5 m of the cell join in), so path feet fan into their plateaus while retaining walls between levels stay sharp
   const tmp = new Float32Array(HGT.length);

@@ -802,8 +802,21 @@ export function buildDressing(root, def, { army, castle = null, sites = [] } = {
   // world.fires contract (vfx embers): ground-level fires near the fight; position y = 0 (vfx adds ground())
   const emberSpots = embers.map(([x, z]) => ({ position: new THREE.Vector3(x, 0, z) }));
 
+  const solids = () => {
+    const out = [];
+    for (const b of props) {
+      const [w, h, d] = b.s, [x, y, z] = b.p;
+      if (w < 1.5 || d < 1.0 || h < 0.3) continue;
+      const yaw = b.r ? b.r[1] : 0;
+      const hw = Math.abs(Math.sin(yaw)) * d / 2 + Math.abs(Math.cos(yaw)) * w / 2;
+      const hd = Math.abs(Math.sin(yaw)) * w / 2 + Math.abs(Math.cos(yaw)) * d / 2;
+      out.push([x - hw, z - hd, x + hw, z + hd]);
+      if (out.length > 600) break;
+    }
+    return out;
+  };
   return {
-    fires: emberSpots, gates, set,
+    fires: emberSpots, gates, set, solids,
     update(t, focus) {
       FOCUS.value.copy(focus);
       for (const c of cloths) animateCloth(c, t);

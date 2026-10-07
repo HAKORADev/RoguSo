@@ -53,7 +53,7 @@ export function createSelect(el, flow) {
       <p class="s-epi"><b></b><small></small></p>
       <p class="s-wpn"><span>Weapon</span><b></b><small></small></p>
       <p class="s-bio"></p>
-      <ul class="s-stats">${STATS.map(([k, zh, en]) => `<li data-k="${k}"><b>${zh}</b><small>${en}</small><span>${[0, 1, 2, 3, 4].map((j) => `<i style="--i:${j}"></i>`).join('')}</span></li>`).join('')}</ul>
+      <ul class="s-stats">${STATS.map(([k, label]) => `<li data-k="${k}"><b>${label}</b><span>${[0, 1, 2, 3, 4].map((j) => `<i style="--i:${j}"></i>`).join('')}</span></li>`).join('')}</ul>
       <div class="s-musou"><span>Musou</span><b></b><small></small>${SWASH}</div>
     </article>
     <div class="s-line"><p></p><small></small></div>

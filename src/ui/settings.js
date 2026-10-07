@@ -290,6 +290,23 @@ export function createSettings(el, flow) {
     const t = e.target.closest('.st-tabs button');
     if (t && t.dataset.p !== pane) showPane(t.dataset.p);
   });
+  addEventListener('keydown', (e) => {
+    if (!el.isConnected || el.hidden || e.code !== 'Escape' || e.defaultPrevented) return;
+    if (capture) { e.preventDefault(); return endCapture(); }
+    if (!modal.hidden) { e.preventDefault(); pending = null; modal.hidden = true; endCapture(); return; }
+    if (armed) {
+      e.preventDefault();
+      armed = false;
+      const m = el.querySelector('.st-modify');
+      if (m) { m.classList.remove('on'); m.querySelector('b').textContent = 'Modify'; }
+      el.querySelector('.st-map')?.classList.remove('armed');
+      sfx('back');
+      return;
+    }
+    e.preventDefault();
+    sfx('back');
+    inkWipe(() => flow.go('title'));
+  });
 
   return {
     enter() {

@@ -14,7 +14,7 @@ import { buildTerrain, GRASS_TIME } from './terrain.js';
 import { buildCastle } from './castle.js';
 import { createRiver } from './river.js';
 import { buildDressing } from './dressing.js';
-import { GATES, ground, smooth, loadMap } from './map.js';
+import { GATES, ground, smooth, loadMap, setSolids } from './map.js';
 import { MAPS, HOME } from './maps/index.js';
 import { on } from '../core/events.js';
 
@@ -124,6 +124,7 @@ export function createWorld(scene, post) {
       SITES = (def.lightSites || []).map(([x, y, z, i, d]) => ({ x, y: ground(x, z) + y, z, i, d, k: 0 }));
       dressing = buildDressing(root, def, { army, castle, sites: SITES });
       world.fires = dressing.fires;
+      setSolids(dressing.solids());
       // gates: render-side eased 0 (shut) … 1 (open) toward the sim state; doors swing in ≈ 1 s, barricades collapse and char
       open = Object.fromEntries(Object.keys(GATES).map((g) => [g, 1]));
       scene.add(root);

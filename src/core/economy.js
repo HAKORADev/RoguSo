@@ -2,7 +2,6 @@
 // save.json (Documents/RoguSo through the shell bridge, localStorage in a plain browser). The design law: nothing is
 // lost on death — a battle banks what it earned, upgrades are permanent, the run is the fun, the shop is the meta.
 //   coins        the shared wallet (loot drops in battle, challenge rewards)
-//   bodycoins    the bio-lab's second wallet (dropped by nude enemies, see biolab)
 //   owned        characters the player can deploy (the first officer is free and always owned)
 //   upg          per character: { power, speed, muso, luck, health, defense, allies, combo } levels
 //   ally         per character: ally training levels { count, power, hp } (trained with the allies in Train)
@@ -17,14 +16,12 @@ const FREE_CHAR = 'zhaoyun';                       // the main officer: owned fr
 const FRESH = () => ({
   v: 1,
   coins: 0,
-  bodycoins: 0,
   owned: [FREE_CHAR],
   upg: {},                                         // [char] -> { power: 0..MAX, ... }
   ally: {},                                        // [char] -> { count: 0..MAX, power: 0..MAX, hp: 0..MAX }
   allyxp: {},                                      // [char] -> ally XP banked in Train (spends on ally upgrades)
   xp: {},                                          // [char] -> banked xp
   train: {},                                       // [char] -> { crit, block, counter }
-  bio: {},                                         // [char] -> biolab body state (ui/biolab.js owns the shape)
   stats: {},                                       // [char] -> lifetime { kills, coins, runs, bestKos, xp }
 });
 
@@ -41,17 +38,12 @@ function load() {
 
 export const economy = () => E;
 export const coins = () => E.coins | 0;
-export const bodyCoins = () => E.bodycoins | 0;
 export const owned = () => E.owned.slice();
 export const isOwned = (id) => E.owned.includes(id);
 export const xpOf = (id) => E.xp[id] | 0;
 
 export function addCoins(n) {
   E.coins = Math.max(0, (E.coins | 0) + (n | 0));
-  save();
-}
-export function addBodyCoins(n) {
-  E.bodycoins = Math.max(0, (E.bodycoins | 0) + (n | 0));
   save();
 }
 export function own(id) {
@@ -210,15 +202,3 @@ export function threatOf(id) {
 function save() { write('rogu.json', E); }
 /** Re-read after the shell bridge answers (storage.init) — same law as settings/records. */
 export function reloadEconomy() { E = load(); }
-
-// ---- the bio-lab store (rogue/body.js owns the shape; the lab's purchases spend bodycoins here)
-export const readBody = (id, make) => (E.bio[id] || (E.bio[id] = make()));
-export function writeBody(id, body, cost = 0) {
-  if (cost > 0) {
-    if ((E.bodycoins | 0) < cost) return false;
-    E.bodycoins -= cost;
-  }
-  E.bio[id] = body;
-  save();
-  return true;
-}

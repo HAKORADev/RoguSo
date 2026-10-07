@@ -7,6 +7,10 @@ const SELECTORS = [
   '.s-card b', '.s-card small', '.s-name h1', '.s-epi b', '.s-wpn b', '.s-musou b', '.s-rec b', '.s-fac i',
   '.t-chs b', '.t-chs small', '.t-dif b', '.t-dcard b', '.t-dcard small', '.t-ccard b', '.t-ccard small',
   '.l-name h1', '.l-en', '.l-ch b', '.l-tip b', '.s-court', '.s-line p', '.s-en', '.rs-unlock',
+  '.rg-loc b', '.rg-loc small', '.rg-loc em', '.rg-char b', '.rg-char small', '.rg-char em',
+  '.rg-urow b', '.rg-urow small', '.rg-urow em', '.rg-uhead b', '.rg-uhead small', '.rg-go b', '.rg-go small',
+  '.rg-chal h4', '.rg-chal p', '.rg-chalgo b', '.rg-chalgo small', '.rg-note', '.rg-wallet span',
+  '.rg-ulab b', '.rg-ulab small', '.rg-ulab em',
 ];
 
 function fit(el) {

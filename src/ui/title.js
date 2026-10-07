@@ -45,7 +45,6 @@ const ITEMS = [
   { go: 'fighters', text: 'Fighters' },
   { go: 'train', text: 'Train' },
   { go: 'rec', text: 'Records' },
-  { go: 'arena', text: 'Arena' },
   { go: 'settings', text: 'Settings' },
   { go: 'reset', text: 'Reset Progress' },
 ];
