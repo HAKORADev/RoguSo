@@ -16,6 +16,7 @@ import { CHAPTERS, chapter } from './chapters.js';
 import { inkWipe, afterWipe, createNav } from '../ui/menu.js';
 
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+const ROGUE = new Set(['rogue', 'challenge', 'trainchar', 'trainally']);
 
 export function createResult(el, flow) {
   let ctx = {}, raf = 0, gone = false, next = null;          // next: the chapter Continue opens the title on
@@ -25,6 +26,7 @@ export function createResult(el, flow) {
     const b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.act === 'retry') leave(() => flow.go('loading', { mode: ctx.mode, ch: ctx.ch, char: ctx.char, art: ctx.art, retry: true }));
+    else if (b.dataset.act === 'again') leave(() => flow.go('loading', { mode: ctx.mode, loc: ctx.loc, ch: ctx.ch, char: ctx.char, art: ctx.art, retry: true }));
     else if (b.dataset.act === 'next') leave(() => flow.go('title', { mode: ctx.mode, ch: next }));
     else leave(() => flow.go('title'));
   });
@@ -37,7 +39,9 @@ export function createResult(el, flow) {
   return {
     enter(c) {
       ctx = c; gone = false;
-      const { win, stats: s } = c, ch = CHARS[c.char] || CHARS.zhaoyun, C = chapter(c.ch), { CH } = C;
+      const { win, stats: s } = c, ch = CHARS[c.char] || CHARS.zhaoyun;
+      if (ROGUE.has(c.mode)) return rogueEnter(c, s, ch, win);   // the roguelike result: earnings, no chapters
+      const C = chapter(c.ch), { CH } = C;
       const epi = C.EPILOGUE[ch.id] || Object.values(C.EPILOGUE)[0], k = CHAPTERS.indexOf(C), after = k >= 0 ? CHAPTERS[k + 1] : null;   // a trial: no next
       const R = c.rec, was = R?.prev;                        // records: what this win beat (was: the cell before it)
       const notices = [R?.first && after ? `<p class="rs-unlock">${after.CH.num} · ${after.CH.title} unlocked</p>` : '',
@@ -66,8 +70,8 @@ export function createResult(el, flow) {
           ? epi.en.map((z) => `<p>${z}</p>`).join('')
           : `<p>${why.en}</p>`}</div>
         <div class="rs-btns">${win
-          ? '<button data-act="next">Continue<small>CONTINUE</small></button>'
-          : '<button data-act="retry">Retry<small>RETRY</small></button><button data-act="title" class="sub">Title<small>TITLE</small></button>'}</div>
+          ? '<button data-act="next">Continue</button>'
+          : '<button data-act="retry">Retry</button><button data-act="title" class="sub">Title</button>'}</div>
       </div>
       <footer class="ui-foot">${win ? '' : '<span><kbd>←</kbd><kbd>→</kbd>Select</span>'}
         <span><kbd>Enter</kbd>Confirm</span><span><kbd>Esc</kbd>Title</span></footer>`;
@@ -89,4 +93,50 @@ export function createResult(el, flow) {
     },
     exit() { cancelAnimationFrame(raf); nav.stop(); },
   };
+
+  /** The roguelike result: what the run earned (coins / XP / ally XP bank whatever the outcome was — the owner's
+   *  law) and the tallies; Continue → title, Again → straight back into the same run. */
+  function rogueEnter(c, s, ch, win) {
+    next = null;
+    const why = c.reason || { en: `${ch.name} falls — but everything gained is kept.` };
+    const rows = [
+      ['K.O. COUNT', s.kos, (v) => v],
+      ['MAX CHAIN', s.maxChain, (v) => v],
+      ['TIME', s.time, mmss],
+      ['COINS EARNED', s.coins | 0, (v) => v],
+      ...(s.xp ? [['XP EARNED', s.xp, (v) => v]] : []),
+      ...(s.allyXp ? [['ALLY XP', s.allyXp, (v) => v]] : []),
+    ];
+    const tline = (s.targets || []).length
+      ? s.targets.map((q) => `<span class="${q.progress >= q.n ? 'ok' : ''}">${q.label} ${q.progress | 0}/${q.n}</span>`).join('')
+      : '';
+    el.className = `scr ${win ? 'win' : 'lose'}${c.art ? ' art' : ''}`;
+    el.style.setProperty('--art', c.art ? `url("${c.art}")` : 'none');
+    el.innerHTML = `<div class="rs">
+      <div class="rs-head"><div class="rs-badge"><canvas width="20" height="20"></canvas></div>
+        <div><small>${{ rogue: 'BATTLE', challenge: 'CHALLENGE', trainchar: 'TRAIN · OFFICER', trainally: 'TRAIN · ALLIES' }[c.mode] || 'RUN'}</small>
+        <h2>${win ? 'VICTORY' : 'THE RUN ENDS'}</h2><em>${win ? 'Everything gained is kept' : 'Everything gained is kept'}</em>${c.diff ? `<span class="rs-dif">${c.diff.text}</span>` : ''}</div></div>
+      <div class="rs-body">
+        <table class="rs-stats">${rows.map(([label], i) => `<tr style="--i:${i}"><th>${label}</th><td>0</td></tr>`).join('')}</table>
+        ${tline ? `<div class="rs-tgts">${tline}</div>` : ''}
+      </div>
+      <div class="rs-epi"><p>${win ? 'The field is yours. Spend it well.' : why.en}</p></div>
+      <div class="rs-btns"><button data-act="again">Again</button><button data-act="title" class="sub">Title</button></div>
+    </div>
+    <footer class="ui-foot"><span><kbd>Enter</kbd>Confirm</span><span><kbd>Esc</kbd>Title</span></footer>`;
+    paintPortrait(el.querySelector('canvas'), ch);
+    const tds = [...el.querySelectorAll('.rs-stats td')], t0 = performance.now() + 700;
+    const tick = (now) => {
+      let busy = false;
+      rows.forEach(([, v, fmt], i) => {
+        const u = Math.max(0, Math.min(1, (now - t0 - i * 280) / 700));
+        if (u < 1) busy = true;
+        tds[i].textContent = fmt(Math.round(v * (1 - (1 - u) ** 3)));
+      });
+      if (busy) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    setTimeout(() => { if (!el.hidden) el.querySelector('button')?.focus({ preventScroll: true }); }, 50);
+    nav.start();
+  }
 }

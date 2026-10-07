@@ -11,10 +11,15 @@ import { CHARS } from '../chars/index.js';
 import { replay } from './menu.js';
 import { difficulty } from '../core/difficulty.js';
 import { chapter } from '../story/chapters.js';
+import { location } from '../rogue/locations.js';
 import { bindings, labelSlot } from '../core/input.js';
 
-/** Band label for a flow ctx: the chapter (story), the trial, or the battlefield (free: the chapter ctx.ch's field). */
+/** Band label for a flow ctx: the rogue location (rogue modes), the chapter (story), the trial, or the battlefield. */
 export function modeLabel(c) {
+  if (c.loc && ['rogue', 'challenge', 'trainchar', 'trainally'].includes(c.mode)) {
+    const what = { rogue: 'Battle', challenge: 'Challenge', trainchar: 'Train · Officer', trainally: 'Train · Allies' }[c.mode];
+    return `${what} · ${location(c.loc).name}`;
+  }
   const { CH } = chapter(c.ch);
   return c.mode === 'free' ? `Free battle · ${CH.title}` : `${c.mode === 'story' ? 'Story' : 'Trial'} · ${CH.num} ${CH.title}`;
 }

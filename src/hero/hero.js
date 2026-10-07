@@ -14,17 +14,23 @@ import { clampWalk, ground } from '../world/map.js';
 import { attachContact } from '../vfx/contact.js';
 import { emit } from '../core/events.js';
 import { CHARS } from '../chars/index.js';
+import { heroMods } from '../core/economy.js';
 
 export function createHero(game) {
   const h = { char: CHARS.zhaoyun, kit: CHARS.zhaoyun.kit, dodgeX: 0, dodgeZ: 1, anim: { from: new Float32Array(POSE_SIZE) } };
 
-  /** New battle: position, facing and (optionally) a new character. */
+  /** New battle: position, facing and (optionally) a new character. The roguelike's upgrade table lands here:
+   *  health → the HP pool, power → atkK (combat multiplies every blow), defense → defK (every blow taken),
+   *  speed → spdK (locomotion reads it), muso → musoK (gauge gain). */
   h.reset = ({ x = 0, z = 0, yaw = 0, char = h.char } = {}) => {
-    h.char = char; h.kit = char.kit; h.hpMax = 400; h.musouMax = 100;
+    h.char = char; h.kit = char.kit;
+    const m = heroMods(char.id);
+    h.hpMax = Math.round(400 * m.hp); h.musouMax = 100;
     Object.assign(h, { dead: false, x, y: 0, z, vx: 0, vy: 0, vz: 0, yaw, hp: h.hpMax, musou: 0, state: 'idle', stateT: 0, move: null,
       moveT: 0, moveSeq: 0, grounded: true, airAttack: false, iframes: 0, speed: 0, runT: 0, runPhase: 0, combo: 0, comboT: 0,
       kos: 0, buf: null, bufT: 0, dodgeBuf: 0, jumpBuf: 0, musouBuf: 0, musouClip: null, musouT: 0,
-      airN: 0, moveAir: false, dodgeSeq: 0 });                // combo-system: air-string count, vault
+      airN: 0, moveAir: false, dodgeSeq: 0,                // combo-system: air-string count, vault
+      spdK: m.speed, atkK: m.atk, defK: m.def, musoK: m.muso, critK: m.crit });
     Object.assign(h.anim, { id: 'idle', t: 0, k: 0, seq: -1, blendF: 1, blendN: 1, yaw,
       lean: 0,                        // run bank (locomotion)
       fx: x, fz: z, px: x, pz: z,     // spear-anim: root at the transition / last step (feet stay planted through a blend)
@@ -36,9 +42,9 @@ export function createHero(game) {
    *  iframes: i-frames even when armour takes the blow (a boss's multi-tick attack lands once, src/actors). */
   h.hurt = (dmg, fromX, fromZ, officer, iframes = 0) => {
     if (h.dead || h.iframes > 0 || h.state === 'musou' || h.state === 'dodge') return false;
-    dmg = Math.round(dmg / h.defK);                           // defK: story buff (story/index.js reset / buff), 1 otherwise
+    dmg = Math.round(dmg / h.defK);                           // defK: the defense upgrades, then the story buff on top
     h.hp = Math.max(game.mode === 'free' ? 1 : 0, h.hp - dmg);   // free mode: the hero cannot die (the demo keeps running)
-    h.musou = Math.min(h.musouMax, h.musou + dmg * 0.15);
+    h.musou = Math.min(h.musouMax, h.musou + dmg * 0.15 * (h.musoK || 1));
     const armored = !!h.move && h.move !== 'aim' && (!officer || h.kit.moves[h.move].armor);   // aim: a stance, not a swing
     emit('hero:hurt', { dmg, hp: h.hp, x: h.x, y: h.y + 1.2, z: h.z, armored });
     const dx = h.x - fromX, dz = h.z - fromZ, l = Math.hypot(dx, dz) || 1;   // knockback away from the striker

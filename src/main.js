@@ -43,6 +43,11 @@ import { spawnPoint, MAP } from './world/map.js';
 import { HOME } from './world/maps/index.js';
 import { createStory } from './story/index.js';
 import { CHAPTERS, chapter } from './story/chapters.js';
+import { createRogue } from './rogue/director.js';
+import { location as locById, ROGUE_MODES } from './rogue/locations.js';
+import { bodyStep, bodyAbility, bodyMine, bodyReset } from './rogue/body.js';
+import * as economy from './core/economy.js';
+import { reloadEconomy } from './core/economy.js';
 import { createTitle } from './ui/title.js';
 import { createSelect } from './ui/select.js';
 import { createLoading } from './ui/loading.js';
@@ -55,6 +60,7 @@ import * as storage from './core/storage.js';
 import { applyBindings, bindingsTemplate, bindings, labelSlot, ACTIONS } from './core/input.js';
 import { read, write } from './core/storage.js';
 import { createSettings } from './ui/settings.js';
+import { createBattle, createFighters, createTrain, createArena } from './ui/rogue.js';
 import { createScheduler } from './core/scheduler.js';
 import { updateDayNight } from './world/daynight.js';
 import { reload as reloadSettings } from './core/settings.js';
@@ -62,12 +68,13 @@ import { reloadDifficulty } from './core/difficulty.js';
 import './ui/cursor3d.js';
 import { fitSoon } from './ui/fittext.js';
 
-// data before anything reads it: records, settings (difficulty + the option tabs), key bindings — Documents/RoguSo
-// through the shell bridge, localStorage in a plain browser. Settings and the difficulty pick re-read after the
-// bridge answers (their modules pre-load from the localStorage mirror alone).
+// data before anything reads it: records, settings (difficulty + the option tabs), key bindings, the roguelike wallet —
+// Documents/RoguSo through the shell bridge, localStorage in a plain browser. Settings and the difficulty pick re-read
+// after the bridge answers (their modules pre-load from the localStorage mirror alone).
 await storage.init();
 reloadSettings();
 reloadDifficulty();
+reloadEconomy();
 if (!read('controls.json') || read('controls.json').v !== 2) write('controls.json', bindingsTemplate());
 applyBindings(read('controls.json'));
 
@@ -93,9 +100,10 @@ game.hero = createHero(game);
 game.crowd = createCrowd(game, ENEMIES);
 game.combat = createCombat(game);
 game.actors = createActors(game);                 // hero-model NPCs: the boss, allied officers (src/actors, CONTRACTS C5)
-game.pickups = createPickups(game);               // meat-bun heals dropped by officers / every 40th grunt
+game.pickups = createPickups(game);               // meat-bun heals dropped by officers / every 40th grunt — and the rogue's coins
 game.musou = game.hero.kit.createMusou(game);     // the character's Musou (rebuilt with the kit in startBattle)
 game.story = createStory(game);
+game.rogue = createRogue(game);                   // the roguelike run director (rogue modes only; story owns the rest)
 const input = createInput();
 
 // ---- render side
@@ -124,7 +132,9 @@ function step() {
   const parts = [
     ['cam', () => game.cam.step(game, inp)], ['hero', () => game.hero.step(inp)], ['combat', () => game.combat.step()],
     ['crowd', () => game.crowd.step()], ['actors', () => { game.actors.step(); game.pickups.step(); }],
-    ['musou', () => game.musou.step()], ['story', () => game.story.step()],
+    ['musou', () => game.musou.step()],
+    ['director', () => (ROGUE_MODES.has(game.mode) ? game.rogue.step() : game.story.step())],
+    ['body', () => bodyStep(game)],
   ];
   for (const [name, run] of parts) {
     try { run(); } catch (err) { simFault(name, err); }
@@ -132,6 +142,8 @@ function step() {
   game.frame++;
   try { vfx.afterStep(); } catch (err) { simFault('vfx', err); }
 }
+
+// the roguelike run modes: ROGUE_MODES (rogue/locations.js) — startBattle / the director / the result branch on them
 
 const simFaults = {};
 function simFault(name, err) {
@@ -170,18 +182,20 @@ function render(real) {
   } catch (err) { simFault('render', err); }
 }
 
-/** New battle: { char: CHARS id, mode: 'story' | 'trial' | 'free', ch: chapter / trial id, map: maps/index.js id (free;
- *  default HOME) }. Sets the armies, loads the map (no-op if it is up), resets every sim module (deterministic from here: both
- *  RNGs reseeded, frame 0), rebuilds the kit views on a character change, lets the story spawn the field. */
-function startBattle({ char = 'zhaoyun', mode = 'free', ch, map } = {}) {
-  const C = mode === 'free' ? null : chapter(ch);                                         // C2: the chapter / trial
+/** New battle: { char: CHARS id, mode: 'free' | 'story' | 'trial' | rogue modes, ch, map, loc (rogue/locations id) }.
+ *  Sets the armies, loads the map (no-op if it is up), resets every sim module (deterministic from here: both RNGs
+ *  reseeded, frame 0), rebuilds the kit views on a character change, lets the story / rogue director spawn the field. */
+function startBattle({ char = 'zhaoyun', mode = 'free', ch, map, loc: locId } = {}) {
+  const rogue = ROGUE_MODES.has(mode);
+  const L = rogue ? locById(locId) : null;
+  const C = (mode === 'free' || rogue) ? null : chapter(ch);                                         // C2: the chapter / trial
   const who = CHARS[char] || CHARS.zhaoyun, newKit = who.kit !== game.hero.kit;
-  char = who.id; ch = C?.CH.id; map = C ? C.CH.map : map || HOME;                          // C2: resolved ids
-  const prev = game.army; game.army = armyPair(C ? C.CH.army : CHAPTERS.find((m) => m.CH.map === map)?.CH.army ?? FREE_ARMY);              // C3
+  char = who.id; ch = C?.CH.id; map = C ? C.CH.map : rogue ? L.map : map || HOME;                          // C2: resolved ids
+  const prev = game.army; game.army = armyPair(rogue ? L.army : C ? C.CH.army : CHAPTERS.find((m) => m.CH.map === map)?.CH.army ?? FREE_ARMY);              // C3
   if (game.army.foe !== prev.foe || game.army.ally !== prev.ally) { crowdView.dispose(); crowdView = createCrowdView(scene, game); }
-  world.load(map, { army: game.army });                                                    // C1
+  world.load(map, { army: game.army });                                                                    // C1
   map = MAP.id;
-  const p = { ...spawnPoint(mode), ...C?.CH.start };                                      // C2 (also opens every gate; a trial: the free arena)
+  const p = { ...spawnPoint(mode), ...C?.CH.start };                                                      // C2 (also opens every gate; a trial: the free arena)
   Object.assign(game, { mode, frame: 0, hitstop: 0, freeze: 0, diff: difficulty() });
   lastRenderFrame = 0;
   vrng.seed(7936); rng.seed(1);
@@ -192,7 +206,9 @@ function startBattle({ char = 'zhaoyun', mode = 'free', ch, map } = {}) {
   if (newKit) buildViews();
   heroView.reset();
   game.actors.reset(); game.pickups.reset();                                              // C5
-  game.story.reset({ mode, char, ch });                                                    // C2
+  bodyReset();                                                                            // the lab's per-run ammo
+  if (rogue) game.rogue.reset({ mode, char, loc: L });
+  else game.story.reset({ mode, char, ch });                                                // C2
   menu.querySelector('.t').innerHTML = `${who.name}<i>${who.seal}</i>`;
   menu.querySelector('.sub').innerHTML = `Battle paused · ${game.diff}<small>Battle paused</small>`;
   document.title = 'RoguSo';
@@ -334,14 +350,41 @@ const screens = {
   title: createTitle($('title'), flow), select: createSelect($('select'), flow), loading: createLoading($('loading')),
   prologue: createPrologue($('prologue'), flow), result: createResult($('result'), flow),
   settings: createSettings($('settings'), flow),
+  battlemenu: createBattle($('battlemenu'), flow), fighters: createFighters($('fighters'), flow),
+  train: createTrain($('train'), flow), arena: createArena($('arena'), flow),
 };
-// a win goes into the records (rec: what it beat and what it opened — the result screen shows both); reason: a fail
-// beat's defeat line. afterWipe: a battle that ends while ANOTHER wipe is still uncovering must not lose its own
-// transition (inkWipe drops calls made mid-wipe) — the result comes up after the running wipe lands instead.
+// a story win/loss goes into the records (rec: what it beat and what it opened — the result screen shows both);
+// reason: a fail beat's defeat line. A ROGUE run ends here too: the run's earnings bank (coins / XP / ally XP —
+// the owner's law: nothing is lost on death), then the result screen shows what was earned. afterWipe: a battle that
+// ends while ANOTHER wipe is still uncovering must not lose its own transition (inkWipe drops calls made mid-wipe).
 on('story:end', (e) => {
   const rec = e.win ? record(ctx.ch, game.hero.char.id, game.diff.id, e.stats) : null;
   afterWipe(() => inkWipe(() => flow.go('result', { ...ctx, char: game.hero.char.id, win: e.win, stats: e.stats, reason: e.reason, diff: game.diff, rec })));
 });
+on('rogue:end', (e) => {
+  const s = e.stats || {}, id = game.hero.char.id;
+  economy.addCoins(s.coins | 0);
+  if (s.xp) economy.addXp(id, s.xp);
+  if (s.allyXp) economy.addAllyXp(id, s.allyXp);
+  economy.addLifetime(id, { kills: s.kos | 0, coins: s.coins | 0, runs: 1, xp: s.xp | 0, bestKos: s.kos | 0 });
+  afterWipe(() => inkWipe(() => flow.go('result', { ...ctx, char: id, win: e.win, stats: s, reason: e.reason, diff: game.diff, rec: null })));
+});
+// the roguelike's ally order (Train → the allies): O sends them forward / calls them back to guard. The Bio-Lab's
+// battle row lives on ZXCVB (kept clear of every other binding): a tap fires the part's ability, holding X plants a
+// mine instead of the fart ring.
+let xDownAt = 0;
+addEventListener('keydown', (e) => {
+  if (state !== 'battle' || paused || e.repeat || e.defaultPrevented) return;
+  if (e.code === 'KeyO' && game.mode === 'trainally') { game.rogue.orderAllies(); return; }
+  if (e.code === 'KeyX') { xDownAt = performance.now(); return; }   // decided on release (tap = ring, hold = mine)
+  if (BIO_KEYS.has(e.code)) bodyAbility(game, e.code);
+});
+addEventListener('keyup', (e) => {
+  if (e.code !== 'KeyX' || state !== 'battle' || paused) return;
+  if (performance.now() - xDownAt > 260) { if (!bodyMine(game)) bodyAbility(game, 'KeyX'); }
+  else bodyAbility(game, 'KeyX');
+});
+const BIO_KEYS = new Set(['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB']);
 addEventListener('keydown', (e) => {
   // opens; the menu's own nav (registered first) closes it and marks the key handled
   if (state === 'battle' && !paused && e.code === 'Escape' && !e.defaultPrevented) setPaused(true);
@@ -377,8 +420,15 @@ addEventListener('keydown', (e) => {
 const dev = params.get('go');
 // the page opens under full ink (index.html): the first screen is built and compiled under it, then the ink sweeps off
 const devChar = params.get('char') || 'zhaoyun';
+const devModes = ['story', 'trial', 'rogue', 'challenge', 'trainchar', 'trainally'];
 const devCh = chapter(params.get('ch') || CHAPTERS.find((m) => m.CH.heroes.includes(devChar))?.CH.id).CH.id;
-inkBoot(() => dev ? flow.go('battle', { mode: ['story', 'trial'].includes(dev) ? dev : 'free', char: devChar, ch: devCh, map: params.get('map') || undefined }) : flow.go('title'));
+inkBoot(() => {
+  if (dev) return flow.go('battle', {
+    mode: devModes.includes(dev) ? dev : 'free', char: devChar, ch: devCh,
+    loc: params.get('loc') || 'hulao', map: params.get('map') || undefined,
+  });
+  return flow.go('title');
+});
 sched.start();
 // harness hook: tools/harness.mjs reads the live flow state (never used by the game itself)
 window.__flow = () => state;

@@ -34,15 +34,18 @@ import { best, records, locked, UNLOCKS } from '../core/progress.js';
 import { wipeAll } from '../core/storage.js';
 import { CHAPTERS, chapterOpen } from '../story/chapters.js';
 import { TRIALS } from '../story/trials.js';
+import { owned, economy, levelOf, xpOf, allyXpOf, upgradeList } from '../core/economy.js';
 
 // brush swash drawn under the focused item (revealed left → right) — one tapered stroke, dry tail
 export const SWASH = `<svg class="swash" viewBox="0 0 400 26" preserveAspectRatio="none" aria-hidden="true"><path d="M3 15C40 7 118 4 214 8
   S352 11 397 5L395 9C368 15 330 17 280 18C226 19 170 17 128 19C84 21 38 22 3 15ZM300 20C330 19 360 17 384 14L382 16C356 20 326 22 300 20Z"/></svg>`;
 
 const ITEMS = [
-  { go: 'story', text: 'Story' },
-  { go: 'trial', text: 'Trials' },
+  { go: 'battlemenu', text: 'Battle' },
+  { go: 'fighters', text: 'Fighters' },
+  { go: 'train', text: 'Train' },
   { go: 'rec', text: 'Records' },
+  { go: 'arena', text: 'Arena' },
   { go: 'settings', text: 'Settings' },
   { go: 'reset', text: 'Reset Progress' },
 ];
@@ -187,7 +190,9 @@ export function createTitle(el, flow) {
   /** The records wall: a row per chapter and trial, a column per officer — his best rank there over a pip per tier
    *  cleared (a chapter he is not in: blank) — then the count cleared and every unlock with its rule or Unlocked. */
   function wall() {
-    const R = records(), who = CHAR_ORDER;
+    // the records wall, the roguelike's way: STATUS per character first (lifetime kills / runs / best KOs / the wallet
+    // they raised / their upgrade level and banked XP), the campaign rank grid kept beneath it for the history
+    const R = records(), who = CHAR_ORDER, E = economy();
     let done = 0, all = 0;
     const row = ({ CH }) => `<tr><th>${CH.title}<small>${CH.num}</small></th>${who.map((id) => {
       if (CH.heroes && !CH.heroes.includes(id)) return '<td class="na"></td>';
@@ -196,11 +201,20 @@ export function createTitle(el, flow) {
       return `<td>${r ? rk(r) : '<i class="t-rk"></i>'}<span>${DIFFS.map((d) => `<u class="${cell?.[d.id] ? 'f' : ''}"></u>`).join('')}</span></td>`;
     }).join('')}</tr>`;
     const rows = [...CHAPTERS, ...TRIALS].map(row).join('');
-    $('.t-rec').innerHTML = `<h2>Records<em><b>${done}</b> / ${all}<small>cleared</small></em></h2>
-      <div class="t-rbody"><div><table><tr><th></th>${who.map((id) => `<td class="${locked(id) ? 'lock' : ''}"><canvas width="20" height="20"></canvas><b>${CHARS[id].name}</b></td>`).join('')}</tr>${rows}</table>
-      <p class="t-rleg"><span>${'<u class="f"></u>'.repeat(DIFFS.length)}</span>${DIFFS.map((d) => d.text).join(' · ')}<small>one pip per difficulty cleared</small></p></div>
-      <ul>${UNLOCKS.map((u) => { const lk = locked(u.id); return `<li class="${lk ? '' : 'open'}"><i>${lk ? 'LOCK' : 'OPEN'}</i><b>${u.text}</b><span>${lk ? lk.rule : 'Unlocked'}</span></li>`; }).join('')}</ul></div>`;
-    el.querySelectorAll('.t-rec canvas').forEach((cv, k) => paintPortrait(cv, CHARS[who[k]]));
+    const stat = (id) => {
+      const s = E.stats[id] || { kills: 0, coins: 0, runs: 0, bestKos: 0 };
+      const lv = upgradeList().reduce((a, u) => a + levelOf(id, u.key), 0);
+      return `<div class="t-pstat ${owned().includes(id) ? '' : 'lock'}">
+        <canvas width="20" height="20"></canvas>
+        <b>${CHARS[id].name}</b><small>${owned().includes(id) ? `power ${lv} · XP ${xpOf(id)} · ally ${allyXpOf(id)}` : 'not yet owned'}</small>
+        <span><em>${s.kills}</em><small>kills</small></span><span><em>${s.runs}</em><small>runs</small></span><span><em>${s.bestKos}</em><small>best</small></span><span><em>${s.coins}</em><small>coins</small></span>
+      </div>`;
+    };
+    $('.t-rec').innerHTML = `<h2>Records<em><b>${E.coins | 0}</b><small>◈ banked</small></em></h2>
+      <div class="t-rbody"><div class="t-proster">${who.map(stat).join('')}</div>
+      <table><tr><th></th>${who.map((id) => `<td class="${locked(id) ? 'lock' : ''}"><canvas width="20" height="20"></canvas><b>${CHARS[id].name}</b></td>`).join('')}</tr>${rows}</table>
+      <p class="t-rleg"><span>${'<u class="f"></u>'.repeat(DIFFS.length)}</span>${DIFFS.map((d) => d.text).join(' · ')}<small>one pip per difficulty cleared</small></p></div>`;
+    el.querySelectorAll('.t-rec canvas').forEach((cv, k) => paintPortrait(cv, CHARS[who[k % who.length]]));
   }
   /** The overlay beside the menu: 'rec' the records wall, null = none. */
   const setPanel = (v) => {
@@ -254,9 +268,9 @@ export function createTitle(el, flow) {
       else { sfx('stamp'); stamp(btns[cur], 'GO'); wipeAll(); }
       return;
     }
-    if (it.go === 'settings') {
+    if (it.go === 'settings' || it.go === 'battlemenu' || it.go === 'fighters' || it.go === 'train' || it.go === 'arena') {
       sfx('ok'); busy = true;
-      return setTimeout(() => inkWipe(() => flow.go('settings')), 380);
+      return setTimeout(() => inkWipe(() => flow.go(it.go)), 380);
     }
     if (it.go === 'rec') setPanel(it.go); else setCh(it.go);
   };

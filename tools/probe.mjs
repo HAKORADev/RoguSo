@@ -21,7 +21,7 @@ const { chromium } = await import(pathToFileURL('/home/z/.npm-global/lib/node_mo
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errs = [];
-page.on('console', (m) => { if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 300)); });
+page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'info' || m.type() === 'log') errs.push(m.type() + ': ' + m.text().slice(0, 200)); });
 page.on('pageerror', (e) => errs.push('pageerror: ' + e.message.split('\n').slice(0, 3).join(' | ').slice(0, 400)));
 page.on('requestfailed', (r) => errs.push('reqfail: ' + r.url().split('/').slice(-1)[0]));
 

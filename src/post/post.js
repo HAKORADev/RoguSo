@@ -337,6 +337,19 @@ export function createPost({ canvas, width, height }) {
     const bq = BLOOMQ[g.bloom] ?? 1;
     bloom.strength = L.bloom * bq;
     bloom.enabled = g.bloom !== 'off';
+    // the VFX toggles (the owner's law): a master switch, then each look of its own — the cinematic lens (chromatic
+    // fringe + grain + vignette + the retro quantisation), the god rays and the atmosphere haze. Off = clean pixels.
+    const vfxOn = g.vfx !== false, cine = vfxOn && g.cinematic !== false;
+    const finU = fin.material.uniforms;
+    finU.uCa.value = cine ? P.ca : 0;
+    finU.uGrain.value = cine ? P.grain : 0;
+    finU.uVignette.value = cine ? P.vignette : 0;
+    finU.uBottom.value = cine ? P.bottom : 0;
+    finU.uLevels.value = vfxOn ? P.levels : 4096;                  // the retro quantisation off
+    finU.uDither.value = vfxOn ? P.dither : 0;
+    rays.enabled = vfxOn && g.rays !== false;
+    atmos.material.uniforms.uHazeDensity.value = g.fog === false ? 0 : P.hazeDensity;
+    atmos.material.uniforms.uHazeMax.value = g.fog === false ? 0 : P.hazeMax;
     const ir = internalRes();
     Q.iw = ir ? ir[0] : Q.w;
     Q.ih = ir ? ir[1] : Q.h;

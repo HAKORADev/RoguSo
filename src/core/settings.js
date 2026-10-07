@@ -126,6 +126,10 @@ export const SCHEMA = {
     kind: 'seg', label: 'Ambient occlusion',
     options: [{ v: 'off', label: 'Off' }, { v: 'low', label: 'Low' }, { v: 'med', label: 'Medium' }, { v: 'high', label: 'High' }],
   },
+  'graphics.vfx': { kind: 'toggle', label: 'Visual effects', hint: 'The master switch for every look effect' },
+  'graphics.cinematic': { kind: 'toggle', label: 'Cinematic lens', hint: 'The blue-red fringe, film grain and vignette' },
+  'graphics.rays': { kind: 'toggle', label: 'God rays', hint: 'Shafts from the sun through the smoke' },
+  'graphics.fog': { kind: 'toggle', label: 'Atmospheric fog', hint: 'The distance haze' },
   'graphics.fsrUpscale': {
     kind: 'seg', label: 'FSR upscaler', wide: true, tag: 'FSR',
     options: [

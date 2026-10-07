@@ -39,8 +39,11 @@ import { clampWalk, routeS, routeAt, MAP } from '../world/map.js';
 export const ST = { OFF: 0, IDLE: 1, ADVANCE: 2, GUARD: 3, ATTACK: 4, HURT: 5, KNOCK: 6, AIR: 7, DOWN: 8, GETUP: 9, DEAD: 10 };
 const isReacting = (s) => s >= ST.HURT && s <= ST.GETUP;
 export const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-/** Visual/role kind (type stays 0 grunt / 1 officer for combat). */
-export const KIND = { SPEAR: 0, SWORD: 1, CAPTAIN: 2, BEARER: 3, OFFICER: 4 };
+/** Visual/role kind (type stays 0 grunt / 1 officer for combat). 5+: the roguelike's exclusive enemies
+ *  (rogue/locations.js): a bone squad rises again once, sky squads drop out of the air, ninja squads fog in fast. */
+export const KIND = { SPEAR: 0, SWORD: 1, CAPTAIN: 2, BEARER: 3, OFFICER: 4, SKELETON: 5, SKY: 6, NINJA: 7 };
+const KIND_HP = { 5: 0.8, 6: 0.9, 7: 0.62 };                      // kind → hp multiplier (the special kinds are glass-ish)
+const KIND_SPD = { 5: 0.92, 6: 1, 7: 1.38 };                      // kind → move-speed multiplier (ninja: faster than men)
 const SQ_HOLD = 1, SQ_MARCH = 2, SQ_HALT = 3, SQ_CHARGE = 4;
 
 export const CROWD = {
@@ -75,6 +78,7 @@ export function createCrowd(game, grunts) {
     N, T, grunts,
     x: F(), z: F(), y: F(), vx: F(), vz: F(), vy: F(), yaw: F(), hp: F(), hpMax: F(),
     st: I(), stT: I(), type: I(), kind: I(), token: I(), cd: I(), hs: I(), flash: I(),
+    rev: I(),                                                    // skeletons: 0 never rose, 1 second life spent
     rx: F(), rxV: F(), spinV: F(), pref: F(), band: I(), phase: F(), bounce: I(),
     lastHit: I(), strafe: F(), kod: I(), tokT: I(), ang: F(), seated: I(),
     squad: I(), slotX: F(), slotZ: F(), form: I(),
@@ -99,7 +103,8 @@ export function createCrowd(game, grunts) {
     c.x[i] = x; c.z[i] = z; c.y[i] = 0; c.vx[i] = c.vz[i] = c.vy[i] = 0;
     c.yaw[i] = Math.atan2(game.hero.x - x, game.hero.z - z);
     c.type[i] = off ? 1 : 0; c.kind[i] = kind;
-    c.hpMax[i] = c.hp[i] = i >= N ? CROWD.allyHp : off ? CROWD.officerHp * game.diff.officerHp : (kind === KIND.CAPTAIN ? CROWD.captainHp : CROWD.hp) * game.diff.gruntHp;
+    c.hpMax[i] = c.hp[i] = (i >= N ? CROWD.allyHp : off ? CROWD.officerHp * game.diff.officerHp : (kind === KIND.CAPTAIN ? CROWD.captainHp : CROWD.hp) * game.diff.gruntHp) * (KIND_HP[kind] || 1);
+    c.rev[i] = 0;
     c.st[i] = engaged ? ST.ADVANCE : ST.IDLE; c.stT[i] = rng.int(0, 60);
     c.token[i] = 0; c.cd[i] = rng.int(0, 120); c.hs[i] = 0; c.flash[i] = 0; c.raiseF[i] = 0; c.feint[i] = 0; c.wind[i] = 0;
     c.rx[i] = c.rxV[i] = c.spinV[i] = 0; c.bounce[i] = 0; c.lastHit[i] = -1; c.kod[i] = 0; c.boss[i] = 0;
@@ -131,8 +136,9 @@ export function createCrowd(game, grunts) {
   }
 
   /** New squad at (sx, sz) facing `face`; members fill a block `cols` wide, 1.15 m apart; bearer ahead, captain on
-   *  the front-left. Does nothing when the table is full (returns the squad id, or -1). */
-  function makeSquad(slots, sx, sz, face, cols, st) {
+   *  the front-left. kind (optional) forces the whole squad into one exclusive KIND (the rogue locations' bone / sky
+   *  / ninja squads); sky: members are placed 11-15 m up and drop in. Does nothing when the table is full. */
+  function makeSquad(slots, sx, sz, face, cols, st, kind = null, sky = false) {
     let q = -1;
     for (let k = 0; k < c.sq.n; k++) if (!c.sq.st[k]) { q = k; break; }
     if (q < 0) { if (c.sq.n >= MAXSQ) return -1; q = c.sq.n++; }
@@ -140,18 +146,19 @@ export function createCrowd(game, grunts) {
     const sn = Math.sin(face), cs = Math.cos(face);
     const rows = Math.ceil((slots.length - 1) / cols);
     slots.forEach((i, k) => {
-      let lx, lz, kind;
-      if (k === 0) { lx = 0; lz = 1.5; kind = KIND.BEARER; }
+      let lx, lz, kd;
+      if (k === 0) { lx = 0; lz = 1.5; kd = kind ?? KIND.BEARER; }
       else {
         const m = k - 1, r = Math.floor(m / cols), q2 = m % cols;
         lx = (q2 - (cols - 1) / 2) * 1.15 + rng.range(-0.12, 0.12); lz = -r * 1.15 + rng.range(-0.12, 0.12) + (rows - 1) * 0.3;
         const g = m ? rng.next() : 0;
-        kind = !m ? KIND.CAPTAIN : g >= 0.05 && g < 0.42 ? KIND.SWORD : KIND.SPEAR;
+        kd = kind ?? (!m ? KIND.CAPTAIN : g >= 0.05 && g < 0.42 ? KIND.SWORD : KIND.SPEAR);
       }
-      place(i, sx + lx * cs + lz * sn, sz - lx * sn + lz * cs, false, kind);
+      place(i, sx + lx * cs + lz * sn, sz - lx * sn + lz * cs, false, kd);
+      if (sky) { c.y[i] = 11 + rng.next() * 4.5; c.vy[i] = -2; c.st[i] = ST.AIR; c.stT[i] = 0; }   // drops from the sky
       c.squad[i] = q; c.slotX[i] = lx; c.slotZ[i] = lz; c.form[i] = 1;
       c.yaw[i] = face;
-      if (st !== SQ_HOLD) c.st[i] = ST.ADVANCE;
+      if (st !== SQ_HOLD && c.st[i] !== ST.AIR) c.st[i] = ST.ADVANCE;   // a sky drop keeps its falling state
     });
     return q;
   }
@@ -186,11 +193,11 @@ export function createCrowd(game, grunts) {
   /** A block of n grunts (standard-bearer + captain + rank and file) at (x, z) facing `face` (default: toward the
    *  hero). hold (default): waits until the director sends it or the hero walks into it; charge: runs straight in.
    *  Fields what is free if fewer than n grunt slots are OFF. Returns the squad id, or -1 (no free slot / squad table full). */
-  c.spawnSquad = ({ x, z, n = 20, face, cols, charge = false }) => {
+  c.spawnSquad = ({ x, z, n = 20, face, cols, charge = false, kind = null, sky = false }) => {
     const slots = freeSlots(false).slice(0, n);
     if (!slots.length) return -1;
     [x, z] = clampWalk(x, z, 3);
-    return makeSquad(slots, x, z, face ?? Math.atan2(game.hero.x - x, game.hero.z - z), cols || Math.max(3, Math.round(Math.sqrt(slots.length * 1.6))), charge ? SQ_CHARGE : SQ_HOLD);
+    return makeSquad(slots, x, z, face ?? Math.atan2(game.hero.x - x, game.hero.z - z), cols || Math.max(3, Math.round(Math.sqrt(slots.length * 1.6))), charge ? SQ_CHARGE : SQ_HOLD, kind, sky);
   };
   /** A named officer at (x, z): name {zh, en} (HUD tag / target bar / KO banner), hp (default CROWD.officerHp), boss
    *  (flag for the story / HUD), engaged: start closing in at once (else he waits until the hero comes within
@@ -262,6 +269,13 @@ export function createCrowd(game, grunts) {
       if (frozen) continue;
       c.stT[i]++;
       if (s === ST.DEAD) {
+        if (c.kind[i] === KIND.SKELETON && !c.rev[i] && c.stT[i] > CROWD.deadTime * 0.45) {
+          // the bone squad's law: rise once, at half blood, right where it fell (a puff of grave dust marks it)
+          c.rev[i] = 1; c.st[i] = ST.IDLE; c.stT[i] = 0; c.cd[i] = 45; c.hp[i] = c.hpMax[i] * 0.5; c.y[i] = 0; c.vy[i] = 0;
+          c.flash[i] = 10;
+          emit('rogue:rise', { x: c.x[i], z: c.z[i] });
+          continue;
+        }
         if (c.stT[i] > CROWD.deadTime) { c.st[i] = ST.OFF; releaseToken(i); }
         continue;
       }
@@ -367,7 +381,8 @@ export function createCrowd(game, grunts) {
         turn(i, faceTo, CROWD.turn);
       }
       c.vx[i] = vx; c.vz[i] = vz;
-      c.x[i] += vx * DT; c.z[i] += vz * DT;
+      const ks = KIND_SPD[c.kind[i]] || 1;             // exclusive kinds move at their own pace (the ninja ghosts in fast)
+      c.x[i] += vx * ks * DT; c.z[i] += vz * ks * DT;
       c.phase[i] += Math.hypot(vx, vz) * DT * 3.2;
     }
     if (!frozen) {

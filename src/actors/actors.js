@@ -214,7 +214,7 @@ export function createActors(game) {
     a.yaw = Math.atan2(h.x - a.x, h.z - a.z);
     const k = { A: D, t: 0, w: Math.max(8, Math.round(D.windup * (rage ? ACTOR.rageK : 1))), a: D.active, r: D.recover, x: a.x, z: a.z,
       yaw: a.yaw, tx: a.x, tz: a.z, key: NPC_KEY + (keys = (keys + 64) % 5e8), seq: ++a.seq };
-    if (D.shape === 'leap') {                                         // onto where the hero stands, ≤ len m
+    if (D.shape === 'leap' || D.shape === 'spell') {                  // onto / over where the hero stands (≤ len m)
       const ex = h.x - a.x, ez = h.z - a.z, s = Math.min(1, D.len / (Math.hypot(ex, ez) || 1));
       [k.tx, k.tz] = clampWalk(a.x + ex * s, a.z + ez * s, 0.5);
     }
@@ -224,9 +224,10 @@ export function createActors(game) {
    *  soldiers in it. first: the attack's opening tick (actor:strike, the effects' cue). */
   function blow(a, k, first) {
     const D = k.A, h = game.hero, lane = D.shape === 'lane';
-    const ox = D.shape === 'leap' ? k.tx : k.x, oz = D.shape === 'leap' ? k.tz : k.z, sn = Math.sin(k.yaw), cs = Math.cos(k.yaw);
+    const aimed = D.shape === 'leap' || D.shape === 'spell';
+    const ox = aimed ? k.tx : k.x, oz = aimed ? k.tz : k.z, sn = Math.sin(k.yaw), cs = Math.cos(k.yaw);
     const reach = lane ? Math.min(D.len, (a.x - k.x) * sn + (a.z - k.z) * cs + D.len - (D.lunge || 0)) : 0;
-    if (first) emit('actor:strike', { key: a.key, kind: D.shape, x: ox, z: oz, yaw: k.yaw, r: D.r || 0, len: D.len || 0, w: D.w || 0 });
+    if (first) emit('actor:strike', { key: a.key, kind: D.shape, x: ox, z: oz, yaw: k.yaw, r: D.r || 0, len: D.len || 0, w: D.w || 0, elem: D.elem });
     const dx = h.x - ox, dz = h.z - oz, lz = dx * sn + dz * cs, lx = dx * cs - dz * sn;
     const inside = lane ? lz >= 0 && lz <= reach && Math.abs(lx) <= D.w / 2 : dx * dx + dz * dz <= D.r * D.r;
     if (inside && h.y < 1.2) h.hurt(Math.round(D.dmg * game.diff.dmg), lane ? a.x : ox, lane ? a.z : oz, true, ACTOR.heroIF);
@@ -242,7 +243,8 @@ export function createActors(game) {
         if (t === E) { a.y = 0; blow(a, k, true); }
       }
     } else if (t > k.w && t <= E) {
-      if (D.lunge) { const s = D.lunge * (ease((t - k.w) / k.a) - ease((t - k.w - 1) / k.a)); a.x += Math.sin(k.yaw) * s; a.z += Math.cos(k.yaw) * s; }
+      // a spell keeps the caster planted (the blast lands on the marked spot); melee attacks may lunge
+      if (D.lunge && D.shape !== 'spell') { const s = D.lunge * (ease((t - k.w) / k.a) - ease((t - k.w - 1) / k.a)); a.x += Math.sin(k.yaw) * s; a.z += Math.cos(k.yaw) * s; }
       if (!D.every ? t === k.w + 1 : (t - k.w - 1) % D.every === 0) blow(a, k, t === k.w + 1);
     }
     if (t >= E + k.r) {

@@ -237,7 +237,8 @@ function flagTexture(glyph, bg, ink = '#1a0f0c') {
 
 // pose channels (per soldier): torso, head, armR, armL, thighR, thighL (rx,ry,rz) · shinR, shinL (rx) · weapR, weapL (rx,ry,rz)
 const TO = 0, HE = 3, AR = 6, AL = 9, TR = 12, TL = 15, SR = 18, SL = 19, WR = 20, WL = 23, NCH = 26;
-const GROUP = [0, 1, 2, 3, 2];                  // kind → pose group: 0 spear, 1 sword+shield, 2 glaive, 3 standard-bearer
+const GROUP = [0, 1, 2, 3, 2, 1, 0, 1];         // kind → pose group: 0 spear, 1 sword+shield, 2 glaive, 3 standard-bearer,
+                                                // 5 bone (sword), 6 sky (spear), 7 ninja (sword)
 const TIP = [1.72, 0.86, 2.25, 2.7];             // weapon tip distance along +Z per group
 const h01 = (i, k = 0) => (((i + 1) * 2654435761 + k * 40503) >>> 0) / 4294967296;
 const legH = (a, bb, rz) => (0.42 * Math.cos(a) + 0.42 * Math.cos(a + bb)) * Math.cos(rz);   // hip → sole height
@@ -622,7 +623,7 @@ export function createCrowdView(scene, game) {
   const _root = new THREE.Matrix4(), _tmp = new THREE.Matrix4(), _loc = new THREE.Matrix4(), _e = new THREE.Euler(0, 0, 0, 'YXZ');
   const mHips = new THREE.Matrix4(), mTorso = new THREE.Matrix4(), mArmR = new THREE.Matrix4(), mArmL = new THREE.Matrix4();
   const mThigh = new THREE.Matrix4(), mOut = new THREE.Matrix4(), mW = new THREE.Matrix4();
-  const _c = new THREE.Color(), _ch = new THREE.Color(), _v = new THREE.Vector3(), _s = new THREE.Matrix4();
+  const _c = new THREE.Color(), _ch = new THREE.Color(), _k = new THREE.Color(), _v = new THREE.Vector3(), _s = new THREE.Matrix4();
   const _glintCold = new THREE.Color(0.55, 0.55, 0.55);    // × glint material: the white wind-up star
   const _g = [0, 0, 0];                                      // hit-impact: emissive glow of the soldier being written
   const local = (out, parent, px, py, pz, rx, ry, rz) => {
@@ -674,9 +675,13 @@ export function createCrowdView(scene, game) {
     y += ground(crowd.x[i], crowd.z[i]);                          // sim y is height above ground (world/map.js)
     _root.makeRotationFromEuler(_e.set(rx, crowd.yaw[i], 0)).setPosition(crowd.x[i] + shake, y, crowd.z[i]);
     _root.multiply(_s.makeScale(sc, sc, sc));
-    // colour: per-soldier tint; the hit flash is an emissive glow (hit-impact, hitGlow)
+    // colour: per-soldier tint; the hit flash is an emissive glow (hit-impact, hitGlow). Exclusive kinds carry their
+    // own look on top: bone-white skeletons, cold high-air sky troops, ink-dark ninja
     const f = tint[i], cap = kind === KIND.CAPTAIN;
     _ch.setRGB(f, f * 0.98, f * 0.95);
+    if (kind === KIND.SKELETON) _ch.setRGB(0.88, 0.86, 0.74);
+    else if (kind === KIND.SKY) _ch.multiply(_k.setRGB(0.72, 0.86, 1.22));
+    else if (kind === KIND.NINJA) _ch.setRGB(0.2, 0.18, 0.23);
     hitGlow(i, _g);
     // telegraph: the last 14 sf of a blow that will really come (feints don't flare)
     const hotStrike = s === ST.ATTACK && !crowd.feint[i] && crowd.foe[i] < 0 && t >= game.diff.windup - 14 && t < game.diff.windup;

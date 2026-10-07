@@ -1121,8 +1121,40 @@ export function createVfx(scene, game, world) {
   // sweep = ring + dust skirt, thrust = dust bursts down the lane under a hot streak), a poise break (star + ring), a meat bun
   // eaten (jade ring, star, motes). Struck actors get the normal contact burst through `hit`.
   const BOSS_RING = [2.2, 0.55, 0.28];
+  // the roguelike's own effects: skeleton rises, ninja fog-in, the bio-lab's battle row
+  on('rogue:rise', (e) => { dustPuff(e.x, e.z, 10, 1.6, 0.4, 0.4, 0.6); ring(e.x, e.z, 1.4, 0.4, [0.75, 0.7, 0.5]); lightFlash(e.x, 0.6, e.z, [0.5, 0.55, 0.35], 14, 0.25); });
+  on('rogue:fog', (e) => { for (let k = 0; k < 6; k++) dustPuff(e.x + Math.sin(k * 1.05) * 2.4, e.z + Math.cos(k * 1.05) * 2.4, 8, 1.2, 1.4, 0.6, 0.35); });
+  on('rogue:bodyfx', (e) => {
+    const r = e.r || 4, fx = Math.sin(e.yaw || 0), fz = Math.cos(e.yaw || 0);
+    if (e.kind === 'milk') { for (let k = 0; k < 4; k++) dustPuff(e.x + fx * (1 + k * 1.6), e.z + fz * (1 + k * 1.6), 5, 1.4, 0.4, 1.1, 0.5); ring(e.x, e.z, r * 0.9, 0.35, [1, 1, 1.1]); }
+    else if (e.kind === 'fart') { dustRing(e.x, e.z, 20, 0.6, r * 1.6, 0.8, 0.6); ring(e.x, e.z, r, 0.45, [0.55, 0.75, 0.3]); }
+    else if (e.kind === 'boner') { beam(STREAK, e.x, e.y ?? 1, e.z, fx, 0, fz, r, 0.9, 0.28, [1.5, 0.5, 0.4]); }
+    else if (e.kind === 'cum') { dustRing(e.x, e.z, 16, 0.6, r * 1.3, 0.7, 0.55); ring(e.x, e.z, r * 0.9, 0.4, [0.95, 0.9, 0.6]); lightFlash(e.x, 1, e.z, [1.1, 1, 0.5], 20, 0.25); }
+    else if (e.kind === 'squirt') { dustColumn(e.x, e.z, 12, 0.5, r * 0.5, 2.6, [0.7, 0.9], 0.7); ring(e.x, e.z, r * 0.85, 0.4, [0.4, 0.75, 1.1]); }
+    else if (e.kind === 'mine') { ring(e.x, e.z, 1.2, 0.5, [0.5, 0.7, 0.35]); dustPuff(e.x, e.z, 6, 1, 0.3, 0.2, 0.5); }
+    else if (e.kind === 'minego') { rocks(e.x, e.z, 16, r * 0.6, 0.14, 0.34, [5, 9], 5); dustRing(e.x, e.z, 24, 0.6, r * 2, 1, 0.8); lightFlash(e.x, 0.8, e.z, [1.2, 0.7, 0.25], 46, 0.3, 12); flash(0.12); }
+    else if (e.kind === 'burntick') { dustPuff(e.x, e.z, 3, 0.8, 0.5, e.y ?? 1.2, 0.5); lightFlash(e.x, e.y ?? 1.2, e.z, [1.3, 0.5, 0.15], 8, 0.16, 4); }
+  });
   on('actor:strike', (e) => {
     const R = e.r || 3;
+    if (e.kind === 'spell') {
+      // the four elemental spells (rogue locations' bosses): one telegraphed blast, four palettes
+      const EL = {
+        fire: { ring: [1.5, 0.35, 0.1], light: [1.4, 0.45, 0.12], dust: [1.2, 0.4, 0.12] },
+        water: { ring: [0.25, 0.55, 1.2], light: [0.3, 0.6, 1.3], dust: [0.4, 0.65, 1.1] },
+        rock: { ring: [0.6, 0.42, 0.22], light: [0.9, 0.7, 0.4], dust: [0.55, 0.4, 0.24] },
+        air: { ring: [0.9, 1.05, 1.1], light: [1.1, 1.25, 1.3], dust: [1, 1, 1] },
+      }[e.elem || 'fire'] || { ring: [1.5, 0.35, 0.1], light: [1.4, 0.45, 0.12], dust: [1.2, 0.4, 0.12] };
+      ring(e.x, e.z, R * 1.2, 0.5, EL.ring);
+      dustRing(e.x, e.z, 22, 0.7, R * 1.9, 0.8, 0.7, EL.dust);
+      if (e.elem === 'rock' || !e.elem) rocks(e.x, e.z, 14, R * 0.75, 0.16, 0.4, [4, 8], 4);
+      if (e.elem === 'fire') { dustColumn(e.x, e.z, 16, 0.7, R * 0.7, 3.4, [0.8, 1.2], 0.85); for (let k = 0; k < 3; k++) lightFlash(e.x, 1 + k * 0.8, e.z, EL.light, 42, 0.3, 10 + k * 4); }
+      else lightFlash(e.x, 1, e.z, EL.light, 46, 0.32, 12);
+      if (e.elem === 'air') for (let k = 0; k < 3; k++) { const a2 = e.yaw + k * 2.09; beam(STREAK, e.x, 1.4, e.z, Math.sin(a2), 0, Math.cos(a2), R * 2.2, 0.8, 0.24, [1, 1, 1.05]); }
+      crack(e.x, e.z, R * 0.8, CRACK_WARM); wall(e.x, e.z, R * 1.2, 1.4, 0.4, WALL_WARM);
+      flash(0.1);
+      return;
+    }
     if (e.kind === 'leap') {
       ring(e.x, e.z, R * 1.25, 0.5, BOSS_RING); dustRing(e.x, e.z, 26, 0.6, R * 2, 0.7, 0.6);
       rocks(e.x, e.z, 18, R * 0.7, 0.14, 0.34, [5, 9], 4); dustColumn(e.x, e.z, 12, 0.6, R * 0.6, 3, [0.8, 1.1], 0.55);

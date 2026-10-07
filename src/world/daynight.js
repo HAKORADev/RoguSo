@@ -68,33 +68,29 @@ const stars = (() => {
 
 let starsRef = null;
 
-/** Advance the clock and apply the whole cycle to the shared state. dt wall seconds; call once per rendered frame. */
+/** Advance the clock and apply the whole cycle to the shared state. dt wall seconds; call once per rendered frame.
+ *  The night factor and the light arc are CONTINUOUS over the whole cycle (the old ramp snapped at dusk and the
+ *  sun/moon direction popped at each transition — the owner's 'weird state change'): dusk eases across ±EDGE s
+ *  around phase 0.5, dawn across the phase 0/1 wrap, and the shared light rides one unbroken wheel (sun up, moon
+ *  takes the same wheel at dusk, nothing jumps, shadows swing slowly all night). */
 export function updateDayNight(dt, scene, camera) {
   clock += dt;
   const ph = phase();
-  // night factor: 0 by day, 1 at night, eased ±22 s round dawn (phase 0/1) and dusk (0.5)
-  if (ph < EDGE) night = 1 - ph / EDGE;
-  else if (ph < 0.5 - EDGE) night = 0;
-  else if (ph < 0.5) night = (ph - (0.5 - EDGE)) / EDGE;
-  else if (ph < 0.5 + EDGE) night = 1 - (ph - 0.5) / EDGE;
-  else if (ph < 1 - EDGE) night = 1;
-  else night = (ph - (1 - EDGE)) / EDGE;
+  const half = EDGE;                                           // the dusk / dawn ramps: ±22 s around each transition
+  if (ph < half) night = 0.5 - ph / (2 * half);                // dawn tail: the night lets go through the wrap
+  else if (ph < 0.5 - half) night = 0;                         // full day
+  else if (ph < 0.5 + half) night = (ph - (0.5 - half)) / (2 * half);   // dusk: the day lets go, eased through
+  else if (ph < 1 - half) night = 1;                           // full night
+  else night = 1 - (ph - (1 - half)) / (2 * half);             // pre-dawn: easing toward the wrap (0.5 at it)
   night = Math.min(1, Math.max(0, night));
   night = night * night * (3 - 2 * night);                       // smoothstep the ramps
 
-  // the arc: day sun up to ≈ 33° at noon, night moon on the opposite azimuth up to ≈ 28°
+  // one continuous wheel: the light climbs from the dawn horizon to the noon peak, sinks to the dusk horizon, and
+  // the moon takes the very same wheel through the night — the direction never jumps, the palettes carry day / night
   const def = skyDef();
   const az0 = def.sunAz ?? 0.31;
-  let elev, az;
-  if (ph < 0.5) {
-    const t = ph / 0.5;
-    elev = 0.03 + Math.sin(Math.PI * t) * 0.55;
-    az = az0 + (t - 0.5) * 1.15;
-  } else {
-    const t = (ph - 0.5) / 0.5;
-    elev = 0.04 + Math.sin(Math.PI * t) * 0.46;
-    az = az0 + Math.PI + (t - 0.5) * 0.95;
-  }
+  const elev = 0.03 + Math.sin(Math.PI * ph) * 0.55;
+  const az = az0 + ph * Math.PI * 2;
   SUN_DIR.set(Math.sin(az) * Math.cos(elev), Math.sin(elev), Math.cos(az) * Math.cos(elev));
 
   // palette: reset to the map's day colours (from the def, every frame — no stale snapshots across map loads), lerp

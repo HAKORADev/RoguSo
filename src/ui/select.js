@@ -25,6 +25,8 @@ import { modeLabel } from './loading.js';
 import { difficulty } from '../core/difficulty.js';
 import { best, locked } from '../core/progress.js';
 import { chapter } from '../story/chapters.js';
+import { isOwned, charPrice } from '../core/economy.js';
+import { ROGUE_MODES } from '../rogue/locations.js';
 import { dotTex, scatter, stagePoint, standOfficer, poseOfficer } from './stage.js';
 import { fitText } from './fittext.js';
 
@@ -88,10 +90,13 @@ export function createSelect(el, flow) {
     }
     $('.s-musou b').textContent = c.musou;
     $('.s-line p').textContent = c.lines.intro;
-    // the line above the info: his unlock rule while locked, else his record here at this difficulty
-    const lk = locked(id), d = difficulty(), r = ctx.mode !== 'free' && best(ctx.ch, id, d.id);
+    // the line above the info: his unlock rule while locked, else his record here at this difficulty (the roguelike
+    // modes lock by ownership: the roster shows the Fighters price instead)
+    const rogue = ROGUE_MODES.has(ctx.mode);
+    const lk = rogue ? (!isOwned(id) ? { rule: `Buy him in Fighters · ◈ ${charPrice(id)}` } : null) : locked(id);
+    const d = difficulty(), r = !rogue && ctx.mode !== 'free' && best(ctx.ch, id, d.id);
     const rec = lk ? lk.rule : r ? `Rank ${r.rank} · ${mmss(r.time)} · ${r.kos} KOs · best on ${d.text}` : `No record on ${d.text} yet`;
-    $('.s-rec').hidden = !lk && ctx.mode === 'free';
+    $('.s-rec').hidden = !lk && (ctx.mode === 'free' || rogue);
     $('.s-rec').classList.toggle('lock', !!lk); $('.s-go').classList.toggle('lock', !!lk);
     $('.s-rec span').textContent = lk ? 'Locked' : 'Record'; $('.s-rec b').textContent = rec; $('.s-rec small').textContent = '';
     $('.s-info').scrollTop = 0;
@@ -104,11 +109,11 @@ export function createSelect(el, flow) {
   const go = () => {
     if (busy) return;
     if (wiping()) return afterWipe(go);             // pressed while this screen is still being uncovered: queued
-    if (locked(cur)) return sfx('back');
+    if (ROGUE_MODES.has(ctx.mode) ? !isOwned(cur) : locked(cur)) return sfx('back');
     busy = true;
     stamp($('.s-act'), 'GO');
     const id = cur;
-    setTimeout(() => inkWipe(() => flow.go('loading', { mode: ctx.mode, ch: ctx.ch, map: ctx.map, char: id })), 520);
+    setTimeout(() => inkWipe(() => flow.go('loading', { mode: ctx.mode, ch: ctx.ch, map: ctx.map, loc: ctx.loc, char: id })), 520);
   };
   const back = () => {
     if (busy) return;
@@ -198,12 +203,13 @@ export function createSelect(el, flow) {
       ctx = c; busy = false; armed = false; clearStamp($('.s-act'));
       const d = difficulty();
       $('.s-mode b').textContent = modeLabel(c); $('.s-mode small').textContent = d.text;
-      // this visit's roster: the chapter's heroes (story) or everyone (trial / free); the focus stays if he is in it
-      const want = (c.mode !== 'free' && chapter(c.ch).CH.heroes) || ALL;
+      // this visit's roster: the chapter's heroes (story) or everyone (rogue / trial / free); the focus stays if he is in it
+      const rogue = ROGUE_MODES.has(c.mode);
+      const want = (rogue || c.mode === 'free') ? ALL : (chapter(c.ch).CH.heroes || ALL);
       ids = ALL.filter((id) => want.includes(id));
       if (!ids.length) ids = ALL;                           // a chapter none of whose heroes exist yet (phase A): anyone
       for (const id in cards) {                             // LOCK on a locked officer, else his best rank here on this tier
-        const lk = !!locked(id), r = (!lk && c.mode !== 'free' && best(c.ch, id, d.id)?.rank) || '', chip = cards[id].querySelector('.t-rk');
+        const lk = rogue ? !isOwned(id) : !!locked(id), r = (!lk && !rogue && c.mode !== 'free' && best(c.ch, id, d.id)?.rank) || '', chip = cards[id].querySelector('.t-rk');
         cards[id].hidden = !ids.includes(id); cards[id].classList.toggle('lock', lk);
         chip.textContent = lk ? 'L' : r; chip.className = `t-rk r${r}`;
       }
